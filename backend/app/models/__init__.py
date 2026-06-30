@@ -1,3 +1,4 @@
+from app.models.coding_progress import CodingProgressCache
 from app.models.faculty import FacultyProfile
 from app.models.notification import Notification
 from app.models.parent import ParentProfile
@@ -8,6 +9,7 @@ from app.models.student import Student
 from app.models.user import User, UserRole
 
 __all__ = [
+    "CodingProgressCache",
     "FacultyProfile",
     "Notification",
     "ParentProfile",

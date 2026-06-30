@@ -36,17 +36,30 @@ def _ensure_columns():
     from sqlalchemy import inspect
     try:
         insp = inspect(engine)
-        columns = [c["name"] for c in insp.get_columns("users")]
+        users_cols = [c["name"] for c in insp.get_columns("users")]
+        students_cols = [c["name"] for c in insp.get_columns("students")]
         with engine.connect() as conn:
-            if "auth_provider" not in columns:
+            if "auth_provider" not in users_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) DEFAULT 'password' NOT NULL"))
                 logger.info("Added column: auth_provider")
-            if "google_sub" not in columns:
+            if "google_sub" not in users_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN google_sub VARCHAR(255) UNIQUE"))
                 logger.info("Added column: google_sub")
-            if "profile_picture" not in columns:
+            if "profile_picture" not in users_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN profile_picture VARCHAR(500)"))
                 logger.info("Added column: profile_picture")
+            if "linkedin_headline" not in students_cols:
+                conn.execute(text("ALTER TABLE students ADD COLUMN linkedin_headline VARCHAR(300)"))
+                logger.info("Added column: linkedin_headline")
+            if "linkedin_about" not in students_cols:
+                conn.execute(text("ALTER TABLE students ADD COLUMN linkedin_about TEXT"))
+                logger.info("Added column: linkedin_about")
+            if "linkedin_skills" not in students_cols:
+                conn.execute(text("ALTER TABLE students ADD COLUMN linkedin_skills VARCHAR(500)"))
+                logger.info("Added column: linkedin_skills")
+            if "linkedin_open_to_work" not in students_cols:
+                conn.execute(text("ALTER TABLE students ADD COLUMN linkedin_open_to_work INTEGER DEFAULT 0"))
+                logger.info("Added column: linkedin_open_to_work")
             conn.commit()
     except Exception as exc:
         logger.warning("Could not add columns (may already exist): %s", exc)
@@ -69,35 +82,11 @@ app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-    ],
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-]
-
-
-@app.middleware("http")
-async def cors_error_fallback(request, call_next):
-    response = await call_next(request)
-    origin = request.headers.get("origin", "")
-    if origin in ALLOWED_ORIGINS:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
 
 
 app.include_router(auth.router, prefix=settings.api_prefix)

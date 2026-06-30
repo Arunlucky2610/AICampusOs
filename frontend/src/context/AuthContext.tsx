@@ -2,7 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useState } fr
 import { api } from "../api/client";
 import { Role, User } from "../types";
 
-type AuthContextValue = { user: User | null; loading: boolean; login: (email: string, password: string) => Promise<Role>; register: (full_name: string, email: string, password: string, role: Role) => Promise<Role>; logout: () => void; };
+type AuthContextValue = { user: User | null; loading: boolean; login: (email: string, password: string) => Promise<Role>; register: (full_name: string, email: string, password: string, role: Role) => Promise<Role>; logout: () => void; refreshUser: () => Promise<User>; };
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export const rolePath: Record<Role, string> = { STUDENT: "/app/student", FACULTY: "/app/faculty", PARENT: "/app/parent", PLACEMENT_OFFICER: "/app/placement", ADMIN: "/app/admin" };
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data.role as Role;
   };
   const logout = () => { localStorage.removeItem("access_token"); localStorage.removeItem("refresh_token"); localStorage.removeItem("user"); setUser(null); };
-  const value = useMemo(() => ({ user, loading, login, register, logout }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, login, register, logout, refreshUser: loadMe }), [user, loading]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

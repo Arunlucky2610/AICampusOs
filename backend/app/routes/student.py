@@ -1,6 +1,8 @@
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
@@ -8,11 +10,29 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.dependencies.auth import require_roles
+from app.models.coding_progress import CodingProgressCache
 from app.models.notification import Notification
 from app.models.prediction import Prediction, Roadmap, Skill
 from app.models.student import Student
 from app.models.user import User, UserRole
+from app.schemas.coding_progress import (
+    CodingProgressResponse,
+    CodingProgressSyncResponse,
+    CodingSummary,
+    GitHubStats,
+    LeetCodeStats,
+    LinkedInProfileInfo,
+    LinkedInStatus,
+)
 from app.schemas.student import StudentProfileRead, StudentProfileUpdate
+from app.services.coding_service import (
+    calculate_coding_score,
+    calculate_placement_readiness,
+    extract_github_username,
+    extract_leetcode_username,
+    fetch_github_stats,
+    fetch_leetcode_stats,
+)
 
 router = APIRouter(prefix="/student", tags=["student"])
 
@@ -40,6 +60,16 @@ def _get_or_create_student(db: Session, user: User) -> Student:
     return student
 
 
+def _get_or_create_coding_progress_cache(db: Session, user: User) -> CodingProgressCache:
+    cache = db.query(CodingProgressCache).filter(CodingProgressCache.user_id == user.id).first()
+    if not cache:
+        cache = CodingProgressCache(user_id=user.id)
+        db.add(cache)
+        db.commit()
+        db.refresh(cache)
+    return cache
+
+
 @router.get("/profile", response_model=StudentProfileRead)
 def get_student_profile(
     current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
@@ -54,10 +84,26 @@ def update_student_profile(
     current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
     db: Session = Depends(get_db),
 ):
-    student = _get_or_create_student(db, current_user)
     update_data = body.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(student, key, value)
+
+    user_updated = False
+    if "full_name" in update_data and update_data["full_name"] is not None:
+        current_user.full_name = update_data["full_name"]
+        user_updated = True
+    if "email" in update_data and update_data["email"] is not None:
+        current_user.email = update_data["email"]
+        user_updated = True
+    if user_updated:
+        db.add(current_user)
+
+    student = _get_or_create_student(db, current_user)
+    student_keys = [k for k in update_data if k not in ("full_name", "email")]
+    for key in student_keys:
+        val = update_data[key]
+        if key == "total_credits" and val is None:
+            continue
+        setattr(student, key, val)
+
     db.commit()
     db.refresh(student)
     return student
@@ -91,12 +137,220 @@ def upload_profile_photo(
     return {"profile_photo_url": photo_url}
 
 
+def _compute_profile_completion(student: Student) -> float:
+    checks = [
+        bool(student.github_url),
+        bool(student.linkedin_url),
+        bool(student.leetcode_url),
+        bool(student.roll_number) and student.roll_number != f"TEMP-{student.user_id}",
+        bool(student.department) and student.department != "Not Set",
+        bool(student.resume_score),
+        bool(student.skill_score),
+        bool(student.coding_score),
+    ]
+    filled = sum(1 for c in checks if c)
+    return round((filled / len(checks)) * 100, 1)
+
+
+def _extract_linkedin_username(url: str | None) -> str | None:
+    if not url:
+        return None
+    import re
+    m = re.match(r"https?://(?:www\.)?linkedin\.com/in/([a-zA-Z0-9_-]+)/?$", url.strip())
+    return m.group(1) if m else None
+
+
+def _compute_linkedin_profile_strength(student: Student) -> int:
+    score = 0
+    if student.linkedin_url:
+        score += 30
+    if student.linkedin_headline:
+        score += 25
+    if student.linkedin_about:
+        score += 25
+    if student.linkedin_skills:
+        score += 20
+    return min(score, 100)
+
+
+def _build_linkedin_profile_info(student: Student) -> LinkedInProfileInfo:
+    username = _extract_linkedin_username(student.linkedin_url)
+    return LinkedInProfileInfo(
+        username=username,
+        headline=student.linkedin_headline,
+        about=student.linkedin_about,
+        skills=student.linkedin_skills,
+        open_to_work=bool(student.linkedin_open_to_work),
+        profile_strength=_compute_linkedin_profile_strength(student),
+    )
+
+
+@router.get("/coding-progress", response_model=CodingProgressResponse)
+def get_coding_progress(
+    current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+):
+    student = _get_or_create_student(db, current_user)
+    cache = _get_or_create_coding_progress_cache(db, current_user)
+
+    github_url = student.github_url
+    leetcode_url = student.leetcode_url
+    linkedin_url = student.linkedin_url
+
+    github_username = extract_github_username(github_url)
+    leetcode_username = extract_leetcode_username(leetcode_url)
+
+    linkedin_profile = _build_linkedin_profile_info(student)
+
+    if cache.last_synced_at:
+        return CodingProgressResponse(
+            github_url=github_url,
+            leetcode_url=leetcode_url,
+            linkedin_url=linkedin_url,
+            github_username=cache.github_username,
+            leetcode_username=cache.leetcode_username,
+            github_stats=GitHubStats(**cache.github_stats_json) if cache.github_stats_json else None,
+            leetcode_stats=LeetCodeStats(**cache.leetcode_stats_json) if cache.leetcode_stats_json else None,
+            linkedin_status=LinkedInStatus(**cache.linkedin_status_json) if cache.linkedin_status_json else None,
+            linkedin_profile=linkedin_profile,
+            coding_score=cache.coding_score or 0,
+            placement_readiness_score=cache.placement_readiness_score or 0,
+            last_synced_at=cache.last_synced_at.isoformat() if cache.last_synced_at else None,
+        )
+
+    return CodingProgressResponse(
+        github_url=github_url,
+        leetcode_url=leetcode_url,
+        linkedin_url=linkedin_url,
+        github_username=github_username,
+        leetcode_username=leetcode_username,
+        github_stats=None,
+        leetcode_stats=None,
+        linkedin_status=LinkedInStatus(connected=bool(linkedin_url), url=linkedin_url),
+        linkedin_profile=linkedin_profile,
+        coding_score=0,
+        placement_readiness_score=0,
+        last_synced_at=None,
+    )
+
+
+@router.post("/coding-progress/sync", response_model=CodingProgressSyncResponse)
+def sync_coding_progress(
+    current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+):
+    student = _get_or_create_student(db, current_user)
+    cache = _get_or_create_coding_progress_cache(db, current_user)
+
+    github_username = extract_github_username(student.github_url)
+    leetcode_username = extract_leetcode_username(student.leetcode_url)
+
+    if not github_username and not leetcode_username:
+        return CodingProgressSyncResponse(
+            success=False,
+            message="Connect your GitHub or LeetCode in Profile first",
+            data=None,
+        )
+
+    github_stats_data = {}
+    leetcode_stats_data = {}
+
+    if github_username:
+        github_stats_data = fetch_github_stats(github_username)
+    elif cache.github_stats_json:
+        github_stats_data = cache.github_stats_json
+
+    if leetcode_username:
+        leetcode_stats_data = fetch_leetcode_stats(leetcode_username)
+    elif cache.leetcode_stats_json:
+        leetcode_stats_data = cache.leetcode_stats_json
+
+    github_stats_obj = GitHubStats(**github_stats_data) if github_stats_data else None
+    leetcode_stats_obj = LeetCodeStats(**leetcode_stats_data) if leetcode_stats_data else None
+
+    has_linkedin = bool(student.linkedin_url)
+    linkedin_status = LinkedInStatus(connected=has_linkedin, url=student.linkedin_url)
+    linkedin_profile = _build_linkedin_profile_info(student)
+
+    coding_score = calculate_coding_score(
+        leetcode_stats_data or {},
+        github_stats_data or {},
+        has_linkedin,
+    )
+
+    profile_completion = _compute_profile_completion(student)
+    lc_total = (leetcode_stats_data or {}).get("total_solved", 0)
+    if isinstance(lc_total, int):
+        pass
+    else:
+        lc_total = 0
+
+    linkedin_strength = _compute_linkedin_profile_strength(student)
+
+    placement_readiness_score = calculate_placement_readiness(
+        lc_total,
+        coding_score,
+        student.resume_score,
+        profile_completion,
+        linkedin_strength,
+    )
+
+    cache.github_username = github_username
+    cache.leetcode_username = leetcode_username
+    cache.github_stats_json = github_stats_data
+    cache.leetcode_stats_json = leetcode_stats_data
+    cache.linkedin_status_json = linkedin_status.model_dump()
+    cache.coding_score = coding_score
+    cache.placement_readiness_score = placement_readiness_score
+    cache.last_synced_at = datetime.utcnow()
+    db.commit()
+    db.refresh(cache)
+
+    return CodingProgressSyncResponse(
+        success=True,
+        message="Coding progress synced successfully",
+        data=CodingProgressResponse(
+            github_url=student.github_url,
+            leetcode_url=student.leetcode_url,
+            linkedin_url=student.linkedin_url,
+            github_username=github_username,
+            leetcode_username=leetcode_username,
+            github_stats=github_stats_obj,
+            leetcode_stats=leetcode_stats_obj,
+            linkedin_status=linkedin_status,
+            linkedin_profile=linkedin_profile,
+            coding_score=coding_score,
+            placement_readiness_score=placement_readiness_score,
+            last_synced_at=cache.last_synced_at.isoformat() if cache.last_synced_at else None,
+        ),
+    )
+
+
+@router.get("/coding-progress/summary", response_model=CodingSummary)
+def get_coding_summary(
+    current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+):
+    cache = _get_or_create_coding_progress_cache(db, current_user)
+    leetcode_stats = cache.leetcode_stats_json or {}
+    github_stats = cache.github_stats_json or {}
+    return CodingSummary(
+        leetcode_total_solved=leetcode_stats.get("total_solved", 0),
+        github_public_repos=github_stats.get("public_repos", 0),
+        github_recent_activity=github_stats.get("recent_activity_count", 0),
+        coding_score=cache.coding_score or 0,
+        placement_readiness_score=cache.placement_readiness_score or 0,
+        last_synced_at=cache.last_synced_at.isoformat() if cache.last_synced_at else None,
+    )
+
+
 @router.get("/dashboard")
 def student_dashboard(
     current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
     db: Session = Depends(get_db),
 ):
     student = _get_or_create_student(db, current_user)
+    cache = _get_or_create_coding_progress_cache(db, current_user)
     notifications = db.query(Notification).filter(Notification.user_id == current_user.id).limit(5).all()
     predictions = db.query(Prediction).filter(Prediction.student_id == student.id).limit(5).all() if student else []
     skills = db.query(Skill).filter(Skill.student_id == student.id).all() if student else []
@@ -104,7 +358,11 @@ def student_dashboard(
 
     has_real_data = bool(student.cgpa or student.attendance_percentage or student.placement_readiness_score)
 
+    leetcode_stats = cache.leetcode_stats_json or {}
+    github_stats = cache.github_stats_json or {}
+
     profile = {
+        "profile_photo_url": student.profile_photo_url,
         "department": student.department,
         "year": student.year,
         "roll_number": student.roll_number,
@@ -129,6 +387,15 @@ def student_dashboard(
         "section": student.section,
         "branch": student.branch,
         "faculty_advisor": student.faculty_advisor,
+    }
+
+    coding_summary = {
+        "leetcode_total_solved": leetcode_stats.get("total_solved", 0),
+        "github_public_repos": github_stats.get("public_repos", 0),
+        "github_recent_activity": github_stats.get("recent_activity_count", 0),
+        "coding_score": cache.coding_score or student.coding_score or 0,
+        "placement_readiness_score": cache.placement_readiness_score or student.placement_readiness_score or 0,
+        "last_synced_at": cache.last_synced_at.isoformat() if cache.last_synced_at else None,
     }
 
     if not has_real_data:
@@ -170,6 +437,7 @@ def student_dashboard(
         "profile": profile,
         "overall": overall,
         "kpis": kpis,
+        "coding_summary": coding_summary,
         "charts": {
             "performanceTrend": [
                 {"month": "Jan", "cgpa": 7.8, "attendance": 82, "readiness": 54},

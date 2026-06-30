@@ -36,22 +36,22 @@ const defaultProfile = (name: string, email: string): StudentProfile => ({
   phone_number: null,
   address: null,
   profile_photo_url: null,
-  cgpa: 0,
-  current_semester_gpa: 0,
-  attendance_percentage: 0,
-  credits_earned: 0,
+  cgpa: null,
+  current_semester_gpa: null,
+  attendance_percentage: null,
+  credits_earned: null,
   total_credits: 180,
   faculty_advisor: null,
-  placement_readiness_score: 0,
-  risk_score: 0,
-  skill_score: 0,
-  resume_score: 0,
-  coding_score: 0,
-  mock_interview_score: 0,
-  communication_score: 0,
-  applications: 0,
-  eligible_companies: 0,
-  offers: 0,
+  placement_readiness_score: null,
+  risk_score: null,
+  skill_score: null,
+  resume_score: null,
+  coding_score: null,
+  mock_interview_score: null,
+  communication_score: null,
+  applications: null,
+  eligible_companies: null,
+  offers: null,
   preferred_role: null,
   expected_package: null,
   semester_gpas: [],
@@ -88,9 +88,13 @@ export function StudentProfileProvider({ children }: { children: ReactNode }) {
   const mutation = useMutation({
     mutationFn: async (body: Partial<StudentProfile>) =>
       (await api.put<StudentProfile>("/student/profile", body)).data,
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["student-profile"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", "student"] });
+      queryClient.invalidateQueries({ queryKey: ["coding-progress"] });
+    },
+    onError: (err) => {
+      console.error("[StudentProfile] Save failed:", err);
     },
   });
 
@@ -114,7 +118,7 @@ export function StudentProfileProvider({ children }: { children: ReactNode }) {
       ["Phone Number", !!profile.phone_number],
       ["Address", !!profile.address],
       ["Faculty Advisor", !!profile.faculty_advisor],
-      ["CGPA", profile.cgpa > 0],
+      ["CGPA", profile.cgpa != null && profile.cgpa > 0],
       ["Skills", Object.keys(profile.skills_data).length > 0],
       ["Certifications", profile.certifications.length > 0],
       ["GitHub", !!profile.github_url],

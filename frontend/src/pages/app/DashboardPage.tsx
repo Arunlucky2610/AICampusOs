@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   AlertTriangle, ArrowUpRight, Award, BarChart3, BookOpen, Brain, BriefcaseBusiness,
-  CalendarDays, CheckCircle2, ChevronRight, Clock, Clock3, Download, FileText,
+  CalendarDays, CheckCircle2, ChevronRight, Clock, Clock3, Code2, Download, FileText,
   Filter, GraduationCap, Lightbulb, MessageSquare, MoreHorizontal, Sparkles,
   Target, Timer, TrendingUp, Trophy, UserCheck, Users,
 } from "lucide-react";
@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { api } from "../../api/client";
+import { Avatar } from "../../components/ui/Avatar";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { useAuth } from "../../context/AuthContext";
@@ -125,7 +126,7 @@ export function DashboardPage({ kind }: { kind: DashboardKind }) {
     if (isError || !data) {
       return <StudentDashboard data={defaultStudentDashboard} />;
     }
-    return <StudentDashboard data={{ ...defaultStudentDashboard, ...data, overall: { ...defaultStudentDashboard.overall!, ...data.overall }, kpis: data.kpis?.length ? data.kpis : defaultStudentDashboard.kpis, charts: { ...defaultStudentDashboard.charts, ...data.charts }, recommendations: data.recommendations?.length ? data.recommendations : defaultStudentDashboard.recommendations, roadmap: data.roadmap?.length ? data.roadmap : defaultStudentDashboard.roadmap, placementReadiness: data.placementReadiness ?? defaultStudentDashboard.placementReadiness, activities: data.activities?.length ? data.activities : defaultStudentDashboard.activities }} />;
+    return <StudentDashboard data={{ ...defaultStudentDashboard, ...data, overall: { ...defaultStudentDashboard.overall!, ...data.overall }, kpis: data.kpis?.length ? data.kpis : [], charts: { ...defaultStudentDashboard.charts, ...data.charts }, coding_summary: data.coding_summary, recommendations: data.recommendations?.length ? data.recommendations : [], roadmap: data.roadmap?.length ? data.roadmap : [], placementReadiness: data.placementReadiness ?? undefined, activities: data.activities?.length ? data.activities : [] }} />;
   }
 
   if (isLoading) return <DashboardSkeleton />;
@@ -175,46 +176,64 @@ export function DashboardPage({ kind }: { kind: DashboardKind }) {
 // =====================================================
 
 function StudentDashboard({ data }: { data: Dashboard }) {
-  const { user } = useAuth();
-  const name = data.user?.full_name || user?.full_name || "Student";
   const o = data.overall ?? defaultStudentDashboard.overall!;
-  const kpis = data.kpis?.length ? data.kpis : defaultStudentDashboard.kpis;
-  const charts = data.charts ?? defaultStudentDashboard.charts;
-  const recommendations = data.recommendations?.length ? data.recommendations : defaultStudentDashboard.recommendations!;
-  const roadmap = data.roadmap?.length ? data.roadmap : defaultStudentDashboard.roadmap!;
-  const placement = data.placementReadiness ?? defaultStudentDashboard.placementReadiness!;
-  const activities = data.activities?.length ? data.activities : defaultStudentDashboard.activities!;
+  const kpis = data.kpis?.length ? data.kpis : [];
+  const charts = data.charts ?? {};
+  const recommendations = data.recommendations?.length ? data.recommendations : [];
+  const roadmap = data.roadmap?.length ? data.roadmap : [];
+  const placement = data.placementReadiness ?? null;
+  const activities = data.activities?.length ? data.activities : [];
 
   return <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-    {/* Header */}
-    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-      <div>
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
-          <Brain size={14} /> AI-powered student intelligence
-        </div>
-        <h2 className="text-4xl font-semibold tracking-normal">Welcome back, {name.split(" ")[0]}</h2>
-        <p className="mt-3 max-w-3xl text-muted">Your AI-powered academic, career, and placement intelligence dashboard.</p>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <Button variant="secondary"><CalendarDays size={16} />Last 30 days</Button>
-        <Button variant="secondary"><Download size={16} />Export</Button>
-        <Button><Sparkles size={16} />Generate AI Report</Button>
-      </div>
-    </div>
-
-    {/* Hero Intelligence Card */}
-    <HeroIntelligenceCard overall={o} />
+    {/* Premium Hero Card */}
+    <StudentHeroCard data={data} />
 
     {/* KPI Cards */}
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {kpis.map((k, i) => <StudentKpiCard key={k.label} item={k} index={i} />)}
     </section>
 
+    {/* Coding Summary */}
+    {data.coding_summary && (
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-sm font-semibold text-primary">CODING PROGRESS</p>
+            <h3 className="mt-1 text-lg font-semibold">Real-time coding activity</h3>
+          </div>
+          <a href="/app/student/coding-progress" className="flex items-center gap-1.5 rounded-xl border border-line px-4 py-2 text-xs font-semibold text-muted transition hover:border-primary/30 hover:text-primary">
+            <Code2 size={14} /> View Full Tracker
+          </a>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl bg-soft px-4 py-3">
+            <p className="text-xs text-muted">LeetCode Solved</p>
+            <p className="mt-1 text-xl font-bold text-[#F59E0B]">{data.coding_summary.leetcode_total_solved}</p>
+          </div>
+          <div className="rounded-xl bg-soft px-4 py-3">
+            <p className="text-xs text-muted">GitHub Repos</p>
+            <p className="mt-1 text-xl font-bold text-[#6C4CF1]">{data.coding_summary.github_public_repos}</p>
+          </div>
+          <div className="rounded-xl bg-soft px-4 py-3">
+            <p className="text-xs text-muted">Coding Score</p>
+            <p className="mt-1 text-xl font-bold text-[#22C55E]">{data.coding_summary.coding_score}%</p>
+          </div>
+          <div className="rounded-xl bg-soft px-4 py-3">
+            <p className="text-xs text-muted">Placement Readiness</p>
+            <p className="mt-1 text-xl font-bold text-[#3B82F6]">{data.coding_summary.placement_readiness_score}%</p>
+          </div>
+        </div>
+        {data.coding_summary.last_synced_at && (
+          <p className="mt-3 text-[11px] text-muted">Last synced: {new Date(data.coding_summary.last_synced_at).toLocaleDateString()}</p>
+        )}
+      </Card>
+    )}
+
     {/* Charts Row 1 — Performance + Skill Radar + Gauge */}
     <section className="grid gap-6 xl:grid-cols-3">
       <ChartCard title="Performance Trend" subtitle="CGPA, attendance, and placement readiness across months">
         <ResponsiveContainer width="100%" height={300}>
-          <RChartLine data={charts.performanceTrend || performanceTrend}>
+          <RChartLine data={charts.performanceTrend || []}>
             <CartesianGrid stroke="#E5E7EB" vertical={false} />
             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
@@ -228,7 +247,7 @@ function StudentDashboard({ data }: { data: Dashboard }) {
 
       <ChartCard title="Skill Radar" subtitle="Role readiness across six core competencies">
         <ResponsiveContainer width="100%" height={300}>
-          <RadarChart data={charts.skillRadar || radar}>
+          <RadarChart data={charts.skillRadar || []}>
             <PolarGrid stroke="#E5E7EB" />
             <PolarAngleAxis dataKey="skill" tick={{ fontSize: 11 }} />
             <Radar dataKey="score" stroke="#6C4CF1" fill="#6C4CF1" fillOpacity={0.18} />
@@ -391,13 +410,13 @@ function StudentDashboard({ data }: { data: Dashboard }) {
           <Award className="text-primary" />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          {[
+          {(placement ? [
             { label: "Resume Quality", value: placement.resumeQuality },
             { label: "Mock Interview Score", value: placement.mockInterviewScore },
             { label: "Technical Skills", value: placement.technicalSkills },
             { label: "Communication", value: placement.communication },
             { label: "Project Strength", value: placement.projectStrength },
-          ].map((item) => (
+          ] : []).map((item) => (
             <div key={item.label} className="rounded-2xl border border-line p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-muted">{item.label}</p>
@@ -466,57 +485,78 @@ function StudentDashboard({ data }: { data: Dashboard }) {
 }
 
 // =====================================================
-// HERO INTELLIGENCE CARD
+// STUDENT HERO CARD — Premium Purple Glass
 // =====================================================
 
-function HeroIntelligenceCard({ overall }: { overall: Dashboard["overall"] }) {
-  const o = overall ?? defaultStudentDashboard.overall!;
-  const items = [
-    { label: "Success Score", value: o.successScore, color: "#6C4CF1", max: 100 },
-    { label: "Placement Readiness", value: o.placementReadiness, color: "#3B82F6", max: 100 },
-    { label: "AI Confidence", value: o.aiConfidence, color: "#22C55E", max: 100 },
-  ];
+function StudentHeroCard({ data }: { data: Dashboard }) {
+  const { user } = useAuth();
+  const profile = data.profile;
+  const name = data.user?.full_name || user?.full_name || "Student";
+  const kpis = data.kpis?.length ? data.kpis : [];
 
-  return <Card className="relative overflow-hidden p-6 md:p-8">
-    <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-primary/5 blur-3xl" />
-    <div className="relative">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-primary">Student Success Intelligence</p>
-          <h3 className="mt-1 text-2xl font-semibold">AI-powered success overview</h3>
+  const cgpaDisplay = profile?.cgpa != null ? profile.cgpa.toFixed(2) : (kpis.find((k) => k.label === "CGPA")?.value || "—");
+  const attendanceDisplay = profile?.attendance_percentage != null ? `${profile.attendance_percentage}%` : (kpis.find((k) => k.label === "Attendance")?.value || "—");
+  const readinessDisplay = profile?.placement_readiness_score != null ? `${profile.placement_readiness_score}%` : (kpis.find((k) => k.label === "Placement Readiness")?.value || "—");
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#6C4CF1] via-[#7C3AED] to-[#8B5CF6] p-6 shadow-xl shadow-[#6C4CF1]/25 md:p-8">
+      <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-white/10 blur-3xl" />
+      <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+      <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="flex-1">
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm">
+            <Brain size={14} /> AI-powered student intelligence
+          </div>
+          <h2 className="mt-3 text-3xl font-bold text-white md:text-4xl">
+            Welcome back, {name.split(" ")[0]}
+          </h2>
+          <div className="mt-5 flex flex-wrap gap-2.5">
+            {profile?.department && (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/12 px-4 py-2 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 hover:border-white/30 hover:bg-white/20 hover:shadow-md">
+                <GraduationCap size={14} className="text-white/80" />
+                {profile.department}
+              </span>
+            )}
+            {profile?.year && (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/12 px-4 py-2 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 hover:border-white/30 hover:bg-white/20 hover:shadow-md">
+                <CalendarDays size={14} className="text-white/80" />
+                {profile.year}<sup>th</sup> Year
+              </span>
+            )}
+            {profile?.semester && (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/12 px-4 py-2 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition duration-200 hover:scale-105 hover:border-white/30 hover:bg-white/20 hover:shadow-md">
+                <BookOpen size={14} className="text-white/80" />
+                Semester {profile.semester}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="hidden items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 sm:flex">
-          <AlertTriangle size={14} /> Risk: {o.academicRisk}
+        <div className="shrink-0">
+          <Avatar
+            src={profile?.profile_photo_url}
+            name={name}
+            size="xl"
+            rounded="2xl"
+            className="ring-4 ring-white/30 shadow-lg"
+          />
         </div>
       </div>
-      <div className="grid gap-6 md:grid-cols-4">
-        {items.map((item) => (
-          <div key={item.label} className="flex flex-col items-center">
-            <div className="relative">
-              <svg width="88" height="88" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="#F3F4F6" strokeWidth="8" />
-                <circle cx="50" cy="50" r="42" fill="none" stroke={item.color} strokeWidth="8"
-                  strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 42}`}
-                  strokeDashoffset={`${2 * Math.PI * 42 * (1 - item.value / item.max)}`}
-                  transform="rotate(-90 50 50)" style={{ transition: "stroke-dashoffset 1s ease" }} />
-              </svg>
-              <div className="absolute inset-0 grid place-items-center">
-                <span className="text-xl font-bold" style={{ color: item.color }}>{item.value}{item.max === 100 ? "%" : ""}</span>
-              </div>
-            </div>
-            <p className="mt-2 text-xs font-medium text-muted">{item.label}</p>
-          </div>
-        ))}
-        <div className="flex flex-col justify-center rounded-2xl bg-gradient-to-br from-primary/5 to-secondary/5 p-4">
-          <p className="text-xs font-semibold text-primary">Next Best Action</p>
-          <p className="mt-1 text-sm font-semibold leading-snug">{o.nextBestAction}</p>
-          <button className="mt-3 flex items-center gap-1 text-xs font-semibold text-primary transition hover:gap-2">
-            View Details <ChevronRight size={14} />
-          </button>
+      <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-md">
+          <p className="text-xs font-medium text-white/60">CGPA</p>
+          <p className="mt-1 text-2xl font-bold text-white">{cgpaDisplay}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-md">
+          <p className="text-xs font-medium text-white/60">Attendance</p>
+          <p className="mt-1 text-2xl font-bold text-white">{attendanceDisplay}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-md">
+          <p className="text-xs font-medium text-white/60">Placement Readiness</p>
+          <p className="mt-1 text-2xl font-bold text-white">{readinessDisplay}</p>
         </div>
       </div>
     </div>
-  </Card>;
+  );
 }
 
 // =====================================================

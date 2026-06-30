@@ -11,6 +11,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { useOptionalStudentProfile } from "../context/StudentProfileContext";
+import { Avatar } from "../components/ui/Avatar";
 import { cn } from "../utils/cn";
 
 type NavItem = { label: string; path: string; icon: React.ElementType };
@@ -186,8 +187,6 @@ export function AppLayout() {
   const isStudentPath = (path: string) => path.startsWith("student/") || path === "student";
   const isFacultyPath = (path: string) => path.startsWith("faculty/") || path === "faculty";
   const isPlacementPath = (path: string) => path.startsWith("placement/") || path === "placement";
-
-  const initials = user?.full_name?.slice(0, 2).toUpperCase() || "AI";
 
   return <div className="min-h-screen bg-[#F5F7FA] text-ink">
     {/* Desktop Sidebar */}
@@ -442,14 +441,7 @@ export function AppLayout() {
       {!collapsed && isStudent && (
         <div className="absolute bottom-0 left-0 right-0 border-t border-[#E8ECF1] bg-white p-4">
           <div className="flex items-center gap-3 rounded-xl bg-[#F5F7FA] p-3">
-            {studentProfile?.profile_photo_url ? (
-              <img src={studentProfile.profile_photo_url.startsWith("http") ? studentProfile.profile_photo_url : `http://localhost:8000${studentProfile.profile_photo_url}`}
-                alt="Profile" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
-            ) : (
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] text-xs font-bold text-white">
-                {initials}
-              </div>
-            )}
+            <Avatar src={studentProfile?.profile_photo_url} name={user?.full_name} size="md" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-[#111827]">{user?.full_name || "Student"}</p>
               <p className="truncate text-xs text-[#6B7280]">
@@ -638,14 +630,7 @@ export function AppLayout() {
               <span className="absolute right-2.5 top-2 h-2 w-2 rounded-full bg-[#F59E0B] ring-2 ring-white" />
             </button>
             <div className="hidden items-center gap-3 md:flex">
-              {isStudent && studentProfile?.profile_photo_url ? (
-                <img src={studentProfile.profile_photo_url.startsWith("http") ? studentProfile.profile_photo_url : `http://localhost:8000${studentProfile.profile_photo_url}`}
-                  alt="Profile" className="h-8 w-8 shrink-0 rounded-xl object-cover" />
-              ) : (
-                <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] text-[11px] font-bold text-white shadow-sm">
-                  {initials}
-                </div>
-              )}
+              <Avatar src={isStudent ? studentProfile?.profile_photo_url : null} name={user?.full_name} size="sm" />
               <div className="max-w-[140px]">
                 <p className="truncate text-sm font-semibold text-[#111827]">{user?.full_name}</p>
                 <p className="truncate text-[11px] font-medium text-[#6B7280]">{user?.email}</p>

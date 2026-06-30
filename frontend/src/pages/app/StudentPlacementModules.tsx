@@ -1,16 +1,25 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  Award, BookOpen, Brain, CalendarDays, CheckCircle2, ChevronRight, Clock,
-  Code2, Download, Edit3, ExternalLink, FileText, GraduationCap, Search,
-  Sparkles, Star, Target, TrendingUp, Users, Video,
+  Activity, AlertCircle, Award, BookOpen, Brain, CalendarDays, CheckCircle2,
+  ChevronRight, ChevronsDown, ChevronsUp, Clock, Code2, Download, Edit3,
+  ExternalLink, FileText, GitBranch, Globe, GraduationCap, Loader2,
+  RefreshCw, Search, Sparkles, Star, Target, Timer, TrendingUp, Trophy,
+  Users, Video, X,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { useNavigate } from "react-router-dom";
+import { api } from "../../api/client";
 import { Card } from "../../components/ui/Card";
 import { cn } from "../../utils/cn";
+import type {
+  CodingProgressData, GitHubRepo, GitHubStats, LeetCodeStats,
+  LeetCodeSubmission,
+} from "../../types";
 
 // =====================================================
 // Mock Interviews
@@ -85,126 +94,548 @@ export function StudentMockInterviews() {
 }
 
 // =====================================================
-// Coding Progress
+// Coding Progress — Real-time from saved profile links
 // =====================================================
 
-const codingPlatforms = [
-  { platform: "LeetCode", username: "arun_21", solved: 185, rating: 1650, rank: "Top 15%", streak: 45, icon: Code2, color: "#F59E0B" },
-  { platform: "CodeChef", username: "arun_s", solved: 120, rating: 1420, rank: "3★", streak: 30, icon: Code2, color: "#6C4CF1" },
-  { platform: "HackerRank", username: "arun_dev", solved: 95, rating: 1380, rank: "Gold", streak: 20, icon: Code2, color: "#22C55E" },
-  { platform: "Codeforces", username: "arun_cf", solved: 78, rating: 1250, rank: "Pupil", streak: 15, icon: Code2, color: "#3B82F6" },
-];
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const codingStats = [
-  { label: "Total Problems", value: "478", color: "#6C4CF1" },
-  { label: "Easy", value: "220", color: "#22C55E" },
-  { label: "Medium", value: "185", color: "#3B82F6" },
-  { label: "Hard", value: "73", color: "#EF4444" },
-];
+function formatRelativeTime(isoStr: string | null): string {
+  if (!isoStr) return "Never";
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
-const monthlyCoding = [
-  { month: "Jan", problems: 35 },
-  { month: "Feb", problems: 42 },
-  { month: "Mar", problems: 38 },
-  { month: "Apr", problems: 55 },
-  { month: "May", problems: 62 },
-  { month: "Jun", problems: 48 },
-];
+function formatTimestamp(ts: string): string {
+  const num = parseInt(ts);
+  if (isNaN(num)) return ts;
+  const d = new Date(num * 1000);
+  return `${monthNames[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
 
-const weeklyActivity = [
-  { day: "Mon", hours: 2.5 },
-  { day: "Tue", hours: 3.0 },
-  { day: "Wed", hours: 1.5 },
-  { day: "Thu", hours: 2.0 },
-  { day: "Fri", hours: 3.5 },
-  { day: "Sat", hours: 4.0 },
-  { day: "Sun", hours: 1.0 },
-];
-
-export function StudentCodingProgress() {
+function LoadingSkeleton() {
   return (
-    <PageShell title="Coding Progress" subtitle="Track your coding practice across platforms.">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-        {codingStats.map((kpi) => (
-          <Card key={kpi.label} className="p-5">
-            <p className="text-sm font-medium text-[#6B7280]">{kpi.label}</p>
-            <p className="mt-2 text-[32px] font-bold tracking-tight text-[#111827]" style={{ color: kpi.color }}>{kpi.value}</p>
-          </Card>
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-24 animate-pulse rounded-[20px] bg-white shadow-sm" />
         ))}
       </div>
-
       <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
-        <Card className="p-6">
-          <div className="mb-4">
-            <p className="text-sm font-semibold text-[#6C4CF1]">CODING PLATFORMS</p>
-            <h3 className="mt-1 text-xl font-bold text-[#111827]">Platform-wise Progress</h3>
+        <div className="h-80 animate-pulse rounded-[20px] bg-white shadow-sm" />
+        <div className="h-80 animate-pulse rounded-[20px] bg-white shadow-sm" />
+      </div>
+    </div>
+  );
+}
+
+type Insight = { message: string; type: "positive" | "warning" | "info" };
+
+function generateInsights(data: CodingProgressData): Insight[] {
+  const insights: Insight[] = [];
+  const lc = data.leetcode_stats;
+  const gh = data.github_stats;
+  if (!lc && !gh) return [{
+    message: "Sync your coding profiles to get personalized AI insights.",
+    type: "info",
+  }];
+  if (lc) {
+    if (lc.total_solved < 100) {
+      insights.push({
+        message: "You've solved fewer than 100 LeetCode problems. Consistent DSA practice (2-3 problems/day) can significantly boost your coding score.",
+        type: "warning",
+      });
+    } else if (lc.total_solved >= 300) {
+      insights.push({
+        message: `Excellent LeetCode progress with ${lc.total_solved} problems solved! Focus on contest participation and system design next.`,
+        type: "positive",
+      });
+    } else {
+      insights.push({
+        message: `Good progress with ${lc.total_solved} problems solved. Aim for 300+ to be competitive at top tech companies.`,
+        type: "info",
+      });
+    }
+  }
+  if (gh) {
+    if (gh.recent_activity_count < 5) {
+      insights.push({
+        message: "Low recent GitHub activity. Pushing projects weekly builds a stronger portfolio for interviews.",
+        type: "warning",
+      });
+    } else if (gh.public_repos >= 10) {
+      insights.push({
+        message: `Strong GitHub presence with ${gh.public_repos} public repos! Keep contributing to open source for greater visibility.`,
+        type: "positive",
+      });
+    } else {
+      insights.push({
+        message: `You have ${gh.public_repos} public repos. Building 2-3 quality projects with good documentation strengthens your resume.`,
+        type: "info",
+      });
+    }
+  }
+  if (!data?.linkedin_url && !data?.linkedin_status?.connected) {
+    insights.push({
+      message: "Add your LinkedIn profile in Settings to build your professional network and attract recruiters.",
+      type: "warning",
+    });
+  }
+  if (insights.length === 0) {
+    insights.push({
+      message: "Your coding profile looks great! Keep up the consistent work.",
+      type: "positive",
+    });
+  }
+  return insights;
+}
+
+function getScoreColor(score: number): string {
+  if (score >= 70) return "#22C55E";
+  if (score >= 40) return "#F59E0B";
+  return "#EF4444";
+}
+
+function ProgressBar({ value, max = 100, color, size = "md" }: { value: number; max?: number; color?: string; size?: "sm" | "md" }) {
+  const pct = Math.min(100, (value / max) * 100);
+  const c = color || getScoreColor(pct);
+  return (
+    <div className={cn("w-full rounded-full bg-[#F3F4F6]", size === "sm" ? "h-1.5" : "h-2.5")}>
+      <div className="rounded-full transition-all duration-700" style={{ width: `${pct}%`, height: "100%", backgroundColor: c }} />
+    </div>
+  );
+}
+
+export function StudentCodingProgress() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const { data: codingData, isLoading: codingLoading } = useQuery<CodingProgressData>({
+    queryKey: ["coding-progress"],
+    queryFn: async () => (await api.get("/student/coding-progress")).data,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const { data: profile } = useQuery({
+    queryKey: ["student-profile"],
+    queryFn: async () => (await api.get("/student/profile")).data,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => (await api.post("/student/coding-progress/sync")).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coding-progress"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "student"] });
+    },
+  });
+
+  const handleSync = useCallback(() => {
+    syncMutation.mutate();
+  }, [syncMutation]);
+
+  const data = codingData;
+
+  const links = {
+    githubUrl: data?.github_url || profile?.github_url || null,
+    leetcodeUrl: data?.leetcode_url || profile?.leetcode_url || null,
+    linkedinUrl: data?.linkedin_url || profile?.linkedin_url || null,
+  };
+
+  console.log("Profile links from API:", {
+    githubUrl: links.githubUrl,
+    leetcodeUrl: links.leetcodeUrl,
+    linkedinUrl: links.linkedinUrl,
+  });
+
+  const hasLinks = links.githubUrl || links.leetcodeUrl || links.linkedinUrl;
+
+  if (codingLoading) return <LoadingSkeleton />;
+
+  const lc = data?.leetcode_stats;
+  const gh = data?.github_stats;
+  const li = data?.linkedin_status;
+  const insights = generateInsights(data || {} as CodingProgressData);
+
+  const weeklyData = lc?.recent_submissions?.length
+    ? lc.recent_submissions.slice(0, 7).map((s, i) => ({
+        day: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][i % 7],
+        submissions: 1,
+      }))
+    : [];
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+        <div>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#6C4CF1]/15 bg-[#6C4CF1]/5 px-3.5 py-1.5 text-xs font-semibold text-[#6C4CF1]">
+            <Code2 size={13} /> CODING PROGRESS
           </div>
-          <div className="space-y-4">
-            {codingPlatforms.map((p) => (
-              <div key={p.platform} className="rounded-xl border border-[#E8ECF1] p-4 transition hover:border-[#6C4CF1]/20 hover:shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-xl" style={{ backgroundColor: `${p.color}15`, color: p.color }}>
-                      <p.icon size={18} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-[#111827]">{p.platform}</p>
-                      <p className="text-xs text-[#6B7280]">@{p.username}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-[#111827]">{p.solved}</p>
-                    <p className="text-[10px] font-medium text-[#6B7280]">solved</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs font-medium text-[#6B7280]">
-                  <span>Rating: {p.rating}</span>
-                  <span>Rank: {p.rank}</span>
-                  <span>🔥 {p.streak} day streak</span>
-                </div>
-              </div>
-            ))}
+          <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Coding Progress</h2>
+          <p className="mt-1 text-sm text-[#6B7280]">Real-time LeetCode + GitHub activity from your profile links</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {data?.last_synced_at && (
+            <span className="flex items-center gap-1.5 text-xs text-[#6B7280]">
+              <Clock size={12} />
+              Synced {formatRelativeTime(data.last_synced_at)}
+            </span>
+          )}
+          <button
+            onClick={handleSync}
+            disabled={syncMutation.isPending}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#6C4CF1]/25 transition hover:shadow-xl disabled:opacity-60"
+          >
+            {syncMutation.isPending ? (
+              <><Loader2 size={15} className="animate-spin" /> Syncing...</>
+            ) : (
+              <><RefreshCw size={15} /> Sync Now</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Error / empty state */}
+      {!hasLinks && !codingLoading && (
+        <Card className="p-8 text-center">
+          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[#FEF3C7] text-[#F59E0B]">
+            <AlertCircle size={28} />
           </div>
+          <h3 className="text-lg font-bold text-[#111827]">No Profile Links Found</h3>
+          <p className="mt-2 text-sm text-[#6B7280]">Connect your GitHub, LeetCode, and LinkedIn in your profile to track coding progress.</p>
+          <button
+            onClick={() => navigate("/app/student/profile")}
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#6C4CF1] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5B3FE0]"
+          >
+            <Edit3 size={14} /> Go to Profile
+          </button>
         </Card>
+      )}
 
-        <div className="space-y-6">
+      {syncMutation.isError && (
+        <div className="flex items-center gap-3 rounded-2xl border border-[#F59E0B]/30 bg-[#FEF3C7] px-5 py-3 text-sm font-semibold text-[#F59E0B]">
+          <AlertCircle size={17} /> Unable to sync now, showing last saved data.
+        </div>
+      )}
+
+      {(lc || gh || syncMutation.data?.data) && (
+        <>
+          {/* LeetCode Overview */}
+          {lc && (
+            <Card className="p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#F59E0B]">LEETCODE</p>
+                  <h3 className="mt-1 text-xl font-bold text-[#111827]">Solved Problems</h3>
+                </div>
+                {links.leetcodeUrl && (
+                  <a href={links.leetcodeUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-[#E8ECF1] px-4 py-2 text-xs font-semibold text-[#6B7280] transition hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1]">
+                    <ExternalLink size={13} /> Open Profile
+                  </a>
+                )}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+                {[
+                  { label: "Total Solved", value: lc.total_solved, color: "#6C4CF1" },
+                  { label: "Easy", value: lc.easy_solved, color: "#22C55E" },
+                  { label: "Medium", value: lc.medium_solved, color: "#3B82F6" },
+                  { label: "Hard", value: lc.hard_solved, color: "#EF4444" },
+                ].map((kpi) => (
+                  <div key={kpi.label} className="rounded-xl bg-[#F5F7FA] p-4">
+                    <p className="text-xs font-medium text-[#6B7280]">{kpi.label}</p>
+                    <p className="mt-1 text-2xl font-bold" style={{ color: kpi.color }}>{kpi.value}</p>
+                    <div className="mt-2">
+                      <ProgressBar value={kpi.value} max={lc.total_solved || 1} color={kpi.color} size="sm" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-6 text-sm">
+                {lc.ranking != null && lc.ranking > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Trophy size={15} className="text-[#F59E0B]" />
+                    <span className="text-[#6B7280]">Ranking: <strong className="text-[#111827]">#{lc.ranking.toLocaleString()}</strong></span>
+                  </div>
+                )}
+                {lc.reputation != null && (
+                  <div className="flex items-center gap-2">
+                    <Star size={15} className="text-[#F59E0B]" />
+                    <span className="text-[#6B7280]">Reputation: <strong className="text-[#111827]">{lc.reputation}</strong></span>
+                  </div>
+                )}
+                {lc.contest_rating != null && (
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={15} className="text-[#F59E0B]" />
+                    <span className="text-[#6B7280]">Contest Rating: <strong className="text-[#111827]">{lc.contest_rating}</strong></span>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* GitHub Activity */}
+          {gh && (
+            <Card className="p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#111827]">GITHUB</p>
+                  <h3 className="mt-1 text-xl font-bold text-[#111827]">Activity Overview</h3>
+                </div>
+                {links.githubUrl && (
+                  <a href={links.githubUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-[#E8ECF1] px-4 py-2 text-xs font-semibold text-[#6B7280] transition hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1]">
+                    <ExternalLink size={13} /> Open Profile
+                  </a>
+                )}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3 mb-5">
+                {[
+                  { label: "Public Repos", value: gh.public_repos, color: "#6C4CF1" },
+                  { label: "Followers", value: gh.followers, color: "#3B82F6" },
+                  { label: "Following", value: gh.following, color: "#22C55E" },
+                ].map((kpi) => (
+                  <div key={kpi.label} className="rounded-xl bg-[#F5F7FA] p-4">
+                    <p className="text-xs font-medium text-[#6B7280]">{kpi.label}</p>
+                    <p className="mt-1 text-2xl font-bold" style={{ color: kpi.color }}>{kpi.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {gh.languages && Object.keys(gh.languages).length > 0 && (
+                <div className="mb-5">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Top Languages</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(gh.languages)
+                      .sort(([, a], [, b]) => b - a)
+                      .slice(0, 6)
+                      .map(([lang, count]) => (
+                        <span key={lang} className="rounded-lg bg-[#6C4CF1]/10 px-3 py-1.5 text-xs font-medium text-[#6C4CF1]">
+                          {lang} ({count})
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {gh.recent_repos && gh.recent_repos.length > 0 && (
+                <div>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Recently Updated Repos</p>
+                  <div className="space-y-2">
+                    {gh.recent_repos.slice(0, 5).map((repo: GitHubRepo, i: number) => (
+                      <a key={i} href={repo.html_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-between rounded-xl border border-[#E8ECF1] px-4 py-3 transition hover:border-[#6C4CF1]/20 hover:bg-[#F5F7FA]">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <GitBranch size={14} className="shrink-0 text-[#6B7280]" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#111827] truncate">{repo.name}</p>
+                            {repo.description && <p className="text-xs text-[#6B7280] truncate">{repo.description}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {repo.language && (
+                            <span className="text-xs font-medium text-[#6B7280]">{repo.language}</span>
+                          )}
+                          <div className="flex items-center gap-1 text-xs text-[#6B7280]">
+                            <Star size={12} /> {repo.stars}
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Coding Consistency */}
+          <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
+            <Card className="p-6">
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-[#6C4CF1]">ACTIVITY</p>
+                <h3 className="mt-1 text-lg font-bold text-[#111827]">Recent GitHub Events ({gh?.recent_activity_count || 0})</h3>
+              </div>
+              {gh?.last_active_date && (
+                <p className="mb-4 text-xs text-[#6B7280]">Last active: {formatRelativeTime(gh.last_active_date)}</p>
+              )}
+              {gh && gh.recent_activity_count > 0 ? (
+                <div className="flex items-end gap-2" style={{ height: 120 }}>
+                  {Array.from({ length: Math.min(gh.recent_activity_count, 10) }).map((_, i) => {
+                    const h = Math.max(10, 100 - i * 8);
+                    return (
+                      <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                        <div
+                          className="w-full rounded-t-lg bg-gradient-to-t from-[#6C4CF1] to-[#8B5CF6] transition-all hover:opacity-80"
+                          style={{ height: `${h}%` }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-24 text-sm text-[#6B7280]">
+                  No recent activity data available
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-6">
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-[#6C4CF1]">SUBMISSIONS</p>
+                <h3 className="mt-1 text-lg font-bold text-[#111827]">Recent LeetCode</h3>
+              </div>
+              {lc?.recent_submissions && lc.recent_submissions.length > 0 ? (
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {lc.recent_submissions.map((sub: LeetCodeSubmission, i: number) => (
+                    <div key={i} className="flex items-center justify-between rounded-lg bg-[#F5F7FA] px-3 py-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {sub.status === "Accepted" ? (
+                          <CheckCircle2 size={13} className="shrink-0 text-[#22C55E]" />
+                        ) : (
+                          <X size={13} className="shrink-0 text-[#EF4444]" />
+                        )}
+                        <span className="text-xs font-medium text-[#111827] truncate">{sub.title}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-medium text-[#6B7280]">{sub.lang}</span>
+                        <span className={cn(
+                          "text-[10px] font-semibold",
+                          sub.status === "Accepted" ? "text-[#22C55E]" : "text-[#EF4444]",
+                        )}>{sub.status === "Accepted" ? "AC" : "WA"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-24 text-sm text-[#6B7280]">
+                  No recent submissions
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* Profile Links Status */}
           <Card className="p-6">
             <div className="mb-4">
-              <p className="text-sm font-semibold text-[#6C4CF1]">TREND</p>
-              <h3 className="mt-1 text-lg font-bold text-[#111827]">Monthly Problems</h3>
+              <p className="text-sm font-semibold text-[#6C4CF1]">PROFILES</p>
+              <h3 className="mt-1 text-lg font-bold text-[#111827]">Connected Platforms</h3>
             </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={monthlyCoding}>
-                <CartesianGrid stroke="#F3F4F6" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E8ECF1" }} />
-                <Bar dataKey="problems" fill="#6C4CF1" radius={[6, 6, 0, 0]} barSize={28} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-
-          <Card className="p-6">
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-[#6C4CF1]">WEEKLY</p>
-              <h3 className="mt-1 text-lg font-bold text-[#111827]">Weekly Activity</h3>
-            </div>
-            <div className="flex items-end gap-2" style={{ height: 120 }}>
-              {weeklyActivity.map((d) => (
-                <div key={d.day} className="flex flex-1 flex-col items-center gap-1">
-                  <div
-                    className="w-full rounded-t-lg bg-gradient-to-t from-[#6C4CF1] to-[#8B5CF6] transition-all hover:opacity-80"
-                    style={{ height: `${(d.hours / 4) * 100}%` }}
-                  />
-                  <span className="text-[10px] font-medium text-[#6B7280]">{d.day.slice(0, 3)}</span>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                {
+                  label: "GitHub",
+                  connected: !!links.githubUrl,
+                  url: links.githubUrl,
+                  username: data?.github_username,
+                  icon: GitBranch,
+                  color: "#111827",
+                },
+                {
+                  label: "LeetCode",
+                  connected: !!links.leetcodeUrl,
+                  url: links.leetcodeUrl,
+                  username: data?.leetcode_username,
+                  icon: Code2,
+                  color: "#F59E0B",
+                },
+                {
+                  label: "LinkedIn",
+                  connected: !!links.linkedinUrl,
+                  url: links.linkedinUrl,
+                  username: null,
+                  icon: Globe,
+                  color: "#0A66C2",
+                },
+              ].map((p) => (
+                <div key={p.label} className={cn(
+                  "rounded-xl border p-4 transition",
+                  p.connected ? "border-[#22C55E]/30 bg-[#F0FDF4]" : "border-[#E8ECF1] bg-white",
+                )}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <p.icon size={18} style={{ color: p.color }} />
+                      <span className="text-sm font-bold text-[#111827]">{p.label}</span>
+                    </div>
+                    {p.connected ? (
+                      <CheckCircle2 size={16} className="text-[#22C55E]" />
+                    ) : (
+                      <div className="h-3 w-3 rounded-full bg-[#E5E7EB]" />
+                    )}
+                  </div>
+                  {p.connected ? (
+                    <div className="space-y-2">
+                      {p.username && <p className="text-xs text-[#6B7280]">@{p.username}</p>}
+                      {p.url && (
+                        <a href={p.url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-[#E8ECF1] px-3 py-1.5 text-xs font-semibold text-[#6C4CF1] transition hover:bg-[#F5F7FA]">
+                          <ExternalLink size={12} /> Open Profile
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => navigate("/app/student/profile")}
+                      className="text-xs font-semibold text-[#6C4CF1] hover:underline"
+                    >
+                      + Add in Profile
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-center text-xs font-medium text-[#6B7280]">Avg: 2.5 hrs/day</p>
           </Card>
-        </div>
-      </div>
-    </PageShell>
+
+          {/* AI Insights */}
+          <Card className="p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <Brain size={18} className="text-[#6C4CF1]" />
+              <p className="text-sm font-semibold text-[#6C4CF1]">AI INSIGHTS</p>
+            </div>
+            <div className="space-y-3">
+              {insights.map((insight, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "rounded-xl border px-4 py-3 text-sm",
+                    insight.type === "positive" && "border-[#22C55E]/30 bg-[#F0FDF4] text-[#16A34A]",
+                    insight.type === "warning" && "border-[#F59E0B]/30 bg-[#FEF3C7] text-[#D97706]",
+                    insight.type === "info" && "border-[#3B82F6]/30 bg-[#EFF6FF] text-[#2563EB]",
+                  )}
+                >
+                  {insight.message}
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Scores Summary */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[
+              { label: "Coding Score", value: data?.coding_score || 0 },
+              { label: "Placement Readiness", value: data?.placement_readiness_score || 0 },
+            ].map((score) => (
+              <Card key={score.label} className="p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-[#6B7280]">{score.label}</p>
+                  <span className="text-xl font-bold" style={{ color: getScoreColor(score.value) }}>
+                    {score.value}%
+                  </span>
+                </div>
+                <ProgressBar value={score.value} />
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+    </motion.div>
   );
 }
 

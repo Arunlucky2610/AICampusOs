@@ -37,23 +37,30 @@ export function StudentAcademicsDashboard() {
 
   const p = profile;
   const name = user?.full_name || "Student";
-  const hasRealData = !!(p?.cgpa || p?.attendance_percentage || p?.placement_readiness_score);
 
   const semesterGpas = p?.semester_gpas?.length ? p.semester_gpas : [];
   const semesterChartData = semesterGpas.length > 0
     ? semesterGpas.map((s: any) => ({ semester: s.semester, cgpa: s.cgpa || s.sgpa }))
     : fallbackSemesterData;
 
-  const cgpaValue = cgpaView === "overall" ? (p?.cgpa || 0).toFixed(2) : (p?.current_semester_gpa || 0).toFixed(1);
-  const attendanceValue = p?.attendance_percentage || 0;
-  const creditsValue = p?.credits_earned || 0;
+  const cgpaVal = p?.cgpa;
+  const sgpaVal = p?.current_semester_gpa;
+  const attVal = p?.attendance_percentage;
+  const credVal = p?.credits_earned;
   const totalCredits = p?.total_credits || 180;
-  const creditsPct = totalCredits > 0 ? Math.round((creditsValue / totalCredits) * 100) : 0;
+  const creditsPct = (credVal ?? 0) > 0 && totalCredits > 0 ? Math.round(((credVal ?? 0) / totalCredits) * 100) : 0;
 
+  const cgpaDisplay = cgpaView === "overall"
+    ? (cgpaVal != null ? cgpaVal.toFixed(2) : null)
+    : (sgpaVal != null ? sgpaVal.toFixed(1) : null);
+  const attendanceDisplay = attVal != null ? attVal : null;
+  const creditsDisplay = credVal != null ? credVal : null;
+
+  const attForCharts = attVal ?? 0;
   const monthlyAttendance = [
-    { month: "Jan", percentage: Math.round(attendanceValue * 0.89) }, { month: "Feb", percentage: Math.round(attendanceValue * 0.93) },
-    { month: "Mar", percentage: Math.round(attendanceValue * 0.96) }, { month: "Apr", percentage: Math.round(attendanceValue * 0.99) },
-    { month: "May", percentage: Math.round(attendanceValue * 1.01) }, { month: "Jun", percentage: Math.round(attendanceValue) },
+    { month: "Jan", percentage: Math.round(attForCharts * 0.89) }, { month: "Feb", percentage: Math.round(attForCharts * 0.93) },
+    { month: "Mar", percentage: Math.round(attForCharts * 0.96) }, { month: "Apr", percentage: Math.round(attForCharts * 0.99) },
+    { month: "May", percentage: Math.round(attForCharts * 1.01) }, { month: "Jun", percentage: Math.round(attForCharts) },
   ];
 
   const subjectMarks = p?.subjects_data?.length ? p.subjects_data.map((s: any) => ({
@@ -72,14 +79,25 @@ export function StudentAcademicsDashboard() {
             <Sparkles size={13} /> AI-Powered Academic Intelligence
           </div>
           <h2 className="text-[32px] font-bold tracking-tight text-[#111827]">Welcome back, {name.split(" ")[0]}</h2>
-          <div className="mt-2 flex items-center gap-2 text-sm text-[#6B7280]">
-            <span className="font-semibold text-[#111827]">{name}</span>
-            <span className="text-[#D1D5DB]">•</span>
-            <span>{p?.department || "Department"}</span>
-            <span className="text-[#D1D5DB]">•</span>
-            <span>{p?.year ? `${p.year}${p.year === 1 ? "st" : p.year === 2 ? "nd" : p.year === 3 ? "rd" : "th"} Year` : ""}</span>
-            <span className="text-[#D1D5DB]">•</span>
-            <span>Sem {p?.semester || ""}</span>
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            {p?.department && (
+              <span className="inline-flex items-center gap-2 rounded-xl border border-[#6C4CF1]/20 bg-gradient-to-br from-[#6C4CF1]/8 to-[#8B5CF6]/8 px-3.5 py-2 text-xs font-semibold text-[#6C4CF1] shadow-sm backdrop-blur-sm transition duration-200 hover:scale-105 hover:border-[#6C4CF1]/40 hover:shadow-md">
+                <GraduationCap size={14} />
+                {p.department}
+              </span>
+            )}
+            {p?.year && (
+              <span className="inline-flex items-center gap-2 rounded-xl border border-[#6C4CF1]/20 bg-gradient-to-br from-[#6C4CF1]/8 to-[#8B5CF6]/8 px-3.5 py-2 text-xs font-semibold text-[#6C4CF1] shadow-sm backdrop-blur-sm transition duration-200 hover:scale-105 hover:border-[#6C4CF1]/40 hover:shadow-md">
+                <CalendarDays size={14} />
+                {p.year}<sup>th</sup> Year
+              </span>
+            )}
+            {p?.semester && (
+              <span className="inline-flex items-center gap-2 rounded-xl border border-[#6C4CF1]/20 bg-gradient-to-br from-[#6C4CF1]/8 to-[#8B5CF6]/8 px-3.5 py-2 text-xs font-semibold text-[#6C4CF1] shadow-sm backdrop-blur-sm transition duration-200 hover:scale-105 hover:border-[#6C4CF1]/40 hover:shadow-md">
+                <BookOpen size={14} />
+                Sem {p.semester}
+              </span>
+            )}
           </div>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#6B7280]">
             {profileIncomplete
@@ -121,10 +139,10 @@ export function StudentAcademicsDashboard() {
               <ChevronDown size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#6C4CF1]" />
             </div>
           </div>
-          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{hasRealData ? cgpaValue : "Complete profile"}</p>
-          {hasRealData && p?.current_semester_gpa && p?.cgpa ? (
+          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{cgpaDisplay != null ? cgpaDisplay : <span className="text-[#D1D5DB]">Not added</span>}</p>
+          {cgpaVal != null && sgpaVal != null ? (
             <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-[#22C55E]">
-              <TrendingUp size={13} /> +{(p.current_semester_gpa - (p.cgpa - 0.3)).toFixed(1)} vs last sem
+              <TrendingUp size={13} /> +{(sgpaVal - (cgpaVal - 0.3)).toFixed(1)} vs last sem
             </div>
           ) : null}
         </Card>
@@ -141,27 +159,27 @@ export function StudentAcademicsDashboard() {
               <ChevronDown size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#6C4CF1]" />
             </div>
           </div>
-          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{hasRealData ? `${attendanceValue}%` : "Complete profile"}</p>
-          {hasRealData ? (
+          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{attendanceDisplay != null ? `${attendanceDisplay}%` : <span className="text-[#D1D5DB]">Not added</span>}</p>
+          {attendanceDisplay != null ? (
             <div className="mt-2 flex items-center gap-3 text-xs">
-              <span className="font-semibold text-[#22C55E]">{Math.round(attendanceValue * 50 / 100)}/50 classes</span>
+              <span className="font-semibold text-[#22C55E]">{Math.round(attForCharts * 50 / 100)}/50 classes</span>
               <span className="text-[#9CA3AF]">•</span>
-              <span className="font-medium text-[#EF4444]">{50 - Math.round(attendanceValue * 50 / 100)} missed</span>
+              <span className="font-medium text-[#EF4444]">{50 - Math.round(attForCharts * 50 / 100)} missed</span>
             </div>
           ) : null}
         </Card>
 
         <Card className="group overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
           <p className="mb-3 text-sm font-medium text-[#6B7280]">Internal Marks Avg</p>
-          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{hasRealData ? `${Math.round(p?.skill_score || 0)}%` : "—"}</p>
+          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{p?.skill_score != null ? `${Math.round(p.skill_score)}%` : <span className="text-[#D1D5DB]">Not added</span>}</p>
           <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#F3F4F6]">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6]" style={{ width: `${p?.skill_score || 0}%` }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6]" style={{ width: `${p?.skill_score ?? 0}%` }} />
           </div>
         </Card>
 
         <Card className="group overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
           <p className="mb-3 text-sm font-medium text-[#6B7280]">Credits Earned</p>
-          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{creditsValue}</p>
+          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{creditsDisplay != null ? creditsDisplay : <span className="text-[#D1D5DB]">Not added</span>}</p>
           <p className="mt-2 text-xs font-medium text-[#6B7280]">of {totalCredits} total</p>
           <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#F3F4F6]">
             <div className="h-full rounded-full bg-gradient-to-r from-[#22C55E] to-[#4ADE80]" style={{ width: `${creditsPct}%` }} />
@@ -170,7 +188,7 @@ export function StudentAcademicsDashboard() {
 
         <Card className="group overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
           <p className="mb-3 text-sm font-medium text-[#6B7280]">Current SGPA</p>
-          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{hasRealData && p?.current_semester_gpa ? p.current_semester_gpa.toFixed(1) : "—"}</p>
+          <p className="text-[32px] font-bold tracking-tight text-[#111827]">{sgpaVal != null ? sgpaVal.toFixed(1) : <span className="text-[#D1D5DB]">Not added</span>}</p>
         </Card>
 
         <Card className="group overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -211,7 +229,7 @@ export function StudentAcademicsDashboard() {
               <p className="text-sm font-semibold text-[#6C4CF1]">ENGAGEMENT</p>
               <h3 className="mt-1 text-xl font-bold text-[#111827]">Monthly Attendance</h3>
             </div>
-            <span className="rounded-full bg-[#22C55E]/10 px-3 py-1 text-xs font-semibold text-[#22C55E]">{attendanceValue}% avg</span>
+            <span className="rounded-full bg-[#22C55E]/10 px-3 py-1 text-xs font-semibold text-[#22C55E]">{attForCharts}% avg</span>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthlyAttendance}>
@@ -266,8 +284,8 @@ export function StudentAcademicsDashboard() {
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={[
-                  { name: "Completed", value: creditsValue, color: "#6C4CF1" },
-                  { name: "Remaining", value: Math.max(0, totalCredits - creditsValue), color: "#E5E7EB" },
+                  { name: "Completed", value: credVal ?? 0, color: "#6C4CF1" },
+                  { name: "Remaining", value: Math.max(0, totalCredits - (credVal ?? 0)), color: "#E5E7EB" },
                 ]} dataKey="value" innerRadius={65} outerRadius={90} startAngle={90} endAngle={-270} paddingAngle={4}>
                   <Cell fill="#6C4CF1" /><Cell fill="#E5E7EB" />
                 </Pie>
@@ -281,11 +299,11 @@ export function StudentAcademicsDashboard() {
           </div>
           <div className="mt-6 grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-[#E8ECF1] bg-[#F5F7FA] p-3 text-center">
-              <p className="text-lg font-bold text-[#6C4CF1]">{creditsValue}</p>
+              <p className="text-lg font-bold text-[#6C4CF1]">{credVal ?? 0}</p>
               <p className="text-[11px] font-medium text-[#6B7280]">Earned</p>
             </div>
             <div className="rounded-xl border border-[#E8ECF1] bg-[#F5F7FA] p-3 text-center">
-              <p className="text-lg font-bold text-[#F59E0B]">{Math.max(0, totalCredits - creditsValue)}</p>
+              <p className="text-lg font-bold text-[#F59E0B]">{Math.max(0, totalCredits - (credVal ?? 0))}</p>
               <p className="text-[11px] font-medium text-[#6B7280]">Remaining</p>
             </div>
           </div>
@@ -302,7 +320,7 @@ export function StudentAcademicsDashboard() {
               <p key={d} className="text-center text-[10px] font-semibold text-[#9CA3AF]">{d}</p>
             ))}
             {Array.from({ length: 28 }, (_, i) => {
-              const val = attendanceValue * (0.85 + Math.random() * 0.15);
+              const val = attForCharts * (0.85 + Math.random() * 0.15);
               return (
                 <div key={i} className="aspect-square rounded-lg border border-[#E8ECF1] transition hover:scale-110 hover:shadow-sm"
                   style={{ backgroundColor: `rgba(108,76,241,${0.08 + val / 130})` }} title={`Day ${i + 1}: ${Math.round(val)}%`}>
@@ -313,7 +331,7 @@ export function StudentAcademicsDashboard() {
           </div>
           <div className="mt-4 flex items-center justify-between rounded-xl border border-[#E8ECF1] bg-[#F5F7FA] px-3 py-2">
             <span className="text-xs font-medium text-[#6B7280]">Monthly Average</span>
-            <span className="text-sm font-bold text-[#22C55E]">{attendanceValue}%</span>
+            <span className="text-sm font-bold text-[#22C55E]">{attForCharts}%</span>
           </div>
         </Card>
       </section>
@@ -329,11 +347,11 @@ export function StudentAcademicsDashboard() {
             <Brain size={20} className="text-[#6C4CF1]" />
           </div>
           <div className="grid gap-3">
-            {(hasRealData ? [
-              { icon: Brain, text: `Improve DSA to increase placement readiness. Current score: ${p?.skill_score || 0}%.`, color: "from-[#6C4CF1] to-[#8B5CF6]" },
-              { icon: FileText, text: `Resume ATS score is ${p?.resume_score || 0}%. Update projects section to improve.`, color: "from-[#3B82F6] to-[#60A5FA]" },
-              { icon: Award, text: `You are eligible for ${p?.eligible_companies || 0} companies this placement season.`, color: "from-[#22C55E] to-[#4ADE80]" },
-              { icon: BookOpen, text: `Current CGPA ${p?.cgpa || 0}. Keep up the momentum!`, color: "from-[#F59E0B] to-[#FBBF24]" },
+            {(cgpaVal != null || attVal != null ? [
+              { icon: Brain, text: `Improve DSA to increase placement readiness. Current score: ${p?.skill_score ?? 0}%.`, color: "from-[#6C4CF1] to-[#8B5CF6]" },
+              { icon: FileText, text: `Resume ATS score is ${p?.resume_score ?? 0}%. Update projects section to improve.`, color: "from-[#3B82F6] to-[#60A5FA]" },
+              { icon: Award, text: `You are eligible for ${p?.eligible_companies ?? 0} companies this placement season.`, color: "from-[#22C55E] to-[#4ADE80]" },
+              { icon: BookOpen, text: `Current CGPA ${cgpaVal ?? 0}. Keep up the momentum!`, color: "from-[#F59E0B] to-[#FBBF24]" },
               { icon: User, text: `Faculty Advisor: ${p?.faculty_advisor || "Not assigned"}. Schedule a meeting.`, color: "from-[#EF4444] to-[#F87171]" },
             ] : [
               { icon: Sparkles, text: `Complete your profile to unlock accurate AI insights and placement predictions.`, color: "from-[#F59E0B] to-[#FBBF24]" },
@@ -344,7 +362,7 @@ export function StudentAcademicsDashboard() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold leading-relaxed text-[#111827]">{insight.text}</p>
-                  {hasRealData && (
+                  {(cgpaVal != null || attVal != null) && (
                     <button className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-[#6C4CF1] transition hover:gap-2">
                       Take Action <ChevronRight size={13} />
                     </button>
@@ -367,11 +385,11 @@ export function StudentAcademicsDashboard() {
           <div className="divide-y divide-[#E8ECF1]">
             {[
               { icon: GraduationCap, label: "Year", value: p?.year ? `${p.year}th Year` : "—" },
-              { icon: Layers, label: "Semester", value: p?.semester ? `Sem ${p.semester}` : "—" },
+              { icon: Layers, label: "Semester", value: p?.semester != null ? `Sem ${p.semester}` : "—" },
               { icon: User, label: "Roll No", value: p?.roll_number || "—" },
-              { icon: Award, label: "CGPA", value: p?.cgpa ? `${p.cgpa} / 10` : "—" },
-              { icon: Target, label: "Placement Readiness", value: p?.placement_readiness_score ? `${p.placement_readiness_score}%` : "—" },
-              { icon: FileText, label: "Resume Score", value: p?.resume_score ? `${p.resume_score}%` : "—" },
+              { icon: Award, label: "CGPA", value: cgpaVal != null ? `${cgpaVal} / 10` : "—" },
+              { icon: Target, label: "Placement Readiness", value: p?.placement_readiness_score != null ? `${p.placement_readiness_score}%` : "—" },
+              { icon: FileText, label: "Resume Score", value: p?.resume_score != null ? `${p.resume_score}%` : "—" },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3 px-6 py-3.5 transition hover:bg-[#F5F7FA]">
                 <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#6C4CF1]/10 text-[#6C4CF1]"><item.icon size={15} /></div>

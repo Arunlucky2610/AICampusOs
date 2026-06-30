@@ -1,7 +1,17 @@
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
+
+
+_NUMERIC_FIELDS = [
+    "cgpa", "current_semester_gpa", "attendance_percentage",
+    "credits_earned", "total_credits",
+    "placement_readiness_score", "risk_score",
+    "skill_score", "resume_score", "coding_score",
+    "mock_interview_score", "communication_score",
+    "applications", "eligible_companies", "offers",
+]
 
 
 class StudentProfileRead(BaseModel):
@@ -21,22 +31,22 @@ class StudentProfileRead(BaseModel):
     phone_number: str | None = None
     address: str | None = None
     profile_photo_url: str | None = None
-    cgpa: float = 0.0
-    current_semester_gpa: float = 0.0
-    attendance_percentage: float = 0.0
-    credits_earned: int = 0
+    cgpa: float | None = None
+    current_semester_gpa: float | None = None
+    attendance_percentage: float | None = None
+    credits_earned: int | None = None
     total_credits: int = 180
     faculty_advisor: str | None = None
-    placement_readiness_score: float = 0.0
-    risk_score: float = 0.0
-    skill_score: float = 0.0
-    resume_score: float = 0.0
-    coding_score: float = 0.0
-    mock_interview_score: float = 0.0
-    communication_score: float = 0.0
-    applications: int = 0
-    eligible_companies: int = 0
-    offers: int = 0
+    placement_readiness_score: float | None = None
+    risk_score: float | None = None
+    skill_score: float | None = None
+    resume_score: float | None = None
+    coding_score: float | None = None
+    mock_interview_score: float | None = None
+    communication_score: float | None = None
+    applications: int | None = None
+    eligible_companies: int | None = None
+    offers: int | None = None
     preferred_role: str | None = None
     expected_package: str | None = None
     semester_gpas: list[dict[str, Any]] = []
@@ -50,9 +60,25 @@ class StudentProfileRead(BaseModel):
     leetcode_url: str | None = None
     portfolio_url: str | None = None
     resume_url: str | None = None
+    linkedin_headline: str | None = None
+    linkedin_about: str | None = None
+    linkedin_skills: str | None = None
+    linkedin_open_to_work: bool = False
     parent_name: str | None = None
     parent_phone: str | None = None
     parent_email: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def zero_is_none(cls, data: Any) -> Any:
+        for field in _NUMERIC_FIELDS:
+            val = getattr(data, field, None) if not isinstance(data, dict) else data.get(field)
+            if val in (0, 0.0):
+                if isinstance(data, dict):
+                    data[field] = None
+                else:
+                    setattr(data, field, None)
+        return data
 
     @field_validator("semester_gpas", "subjects_data", "certifications", "eligible_companies_list", "applied_companies_list", mode="before")
     @classmethod
@@ -63,10 +89,19 @@ class StudentProfileRead(BaseModel):
             return []
         return v if isinstance(v, list) else []
 
+    @model_validator(mode="after")
+    @classmethod
+    def ensure_defaults(cls, data: Any) -> Any:
+        if data.total_credits is None or data.total_credits == 0:
+            data.total_credits = 180
+        return data
+
     model_config = {"from_attributes": True}
 
 
 class StudentProfileUpdate(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
     roll_number: str | None = None
     registration_number: str | None = None
     department: str | None = None
@@ -110,6 +145,10 @@ class StudentProfileUpdate(BaseModel):
     leetcode_url: str | None = None
     portfolio_url: str | None = None
     resume_url: str | None = None
+    linkedin_headline: str | None = None
+    linkedin_about: str | None = None
+    linkedin_skills: str | None = None
+    linkedin_open_to_work: bool | None = None
     parent_name: str | None = None
     parent_phone: str | None = None
     parent_email: str | None = None

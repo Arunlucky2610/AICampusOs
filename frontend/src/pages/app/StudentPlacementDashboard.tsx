@@ -18,18 +18,27 @@ export function StudentPlacementDashboard() {
   const navigate = useNavigate();
   const [selectedInsight, setSelectedInsight] = useState(0);
   const p = profile;
-  const hasRealData = !!(p?.placement_readiness_score || p?.resume_score || p?.coding_score);
   const profileIncomplete = completion.percent < 50;
 
+  const readiness = p?.placement_readiness_score;
+  const resumeScore = p?.resume_score;
+  const codingScore = p?.coding_score;
+  const commScore = p?.skill_score;
+  const mockScore = p?.mock_interview_score;
+  const eligibleCos = p?.eligible_companies;
+  const appsSent = p?.applications;
+  const offersRecv = p?.offers;
+  const hasRealData = !!(readiness || resumeScore || codingScore);
+
   const placementKpis = [
-    { label: "Placement Readiness", value: p?.placement_readiness_score ? `${p.placement_readiness_score}%` : "—", trend: p?.placement_readiness_score ? "+8%" : "", score: p?.placement_readiness_score || 0, color: "#6C4CF1" },
-    { label: "Resume Score", value: p?.resume_score ? `${p.resume_score}%` : "—", trend: p?.resume_score ? "+12%" : "", score: p?.resume_score || 0, color: "#3B82F6" },
-    { label: "Coding Score", value: p?.coding_score ? `${p.coding_score}%` : "—", trend: p?.coding_score ? "+6%" : "", score: p?.coding_score || 0, color: "#8B5CF6" },
-    { label: "Communication", value: p?.skill_score ? `${Math.round(p.skill_score * 0.9)}%` : "—", trend: "+4%", score: p?.skill_score ? Math.round(p.skill_score * 0.9) : 0, color: "#22C55E" },
-    { label: "Mock Interview Score", value: p?.mock_interview_score ? `${p.mock_interview_score}%` : "—", trend: p?.mock_interview_score ? "+15%" : "", score: p?.mock_interview_score || 0, color: "#F59E0B" },
-    { label: "Company Eligibility", value: p?.eligible_companies ? String(p.eligible_companies) : "—", trend: "+8", score: Math.min(100, (p?.eligible_companies || 0) * 4), color: "#EF4444" },
-    { label: "Applications Sent", value: p?.applications ? String(p.applications) : "—", trend: "+5", score: Math.min(100, (p?.applications || 0) * 8), color: "#6C4CF1" },
-    { label: "Offers Received", value: p?.offers ? String(p.offers) : "—", trend: p?.offers ? "+2" : "", score: Math.min(100, (p?.offers || 0) * 50), color: "#22C55E" },
+    { label: "Placement Readiness", value: readiness != null ? `${readiness}%` : "—", trend: readiness ? "+8%" : "", score: readiness ?? 0, color: "#6C4CF1" },
+    { label: "Resume Score", value: resumeScore != null ? `${resumeScore}%` : "—", trend: resumeScore ? "+12%" : "", score: resumeScore ?? 0, color: "#3B82F6" },
+    { label: "Coding Score", value: codingScore != null ? `${codingScore}%` : "—", trend: codingScore ? "+6%" : "", score: codingScore ?? 0, color: "#8B5CF6" },
+    { label: "Communication", value: commScore != null ? `${Math.round(commScore * 0.9)}%` : "—", trend: "+4%", score: commScore ? Math.round(commScore * 0.9) : 0, color: "#22C55E" },
+    { label: "Mock Interview Score", value: mockScore != null ? `${mockScore}%` : "—", trend: mockScore ? "+15%" : "", score: mockScore ?? 0, color: "#F59E0B" },
+    { label: "Company Eligibility", value: eligibleCos != null ? String(eligibleCos) : "—", trend: "+8", score: Math.min(100, (eligibleCos ?? 0) * 4), color: "#EF4444" },
+    { label: "Applications Sent", value: appsSent != null ? String(appsSent) : "—", trend: "+5", score: Math.min(100, (appsSent ?? 0) * 8), color: "#6C4CF1" },
+    { label: "Offers Received", value: offersRecv != null ? String(offersRecv) : "—", trend: offersRecv ? "+2" : "", score: Math.min(100, (offersRecv ?? 0) * 50), color: "#22C55E" },
   ];
 
   const skills = p?.skills_data || {};
@@ -39,33 +48,36 @@ export function StudentPlacementDashboard() {
     ...(skills.ai_skills || []).map((s: string) => ({ skill: s, score: 60 + Math.random() * 30 })),
   ].slice(0, 6);
 
+  const baseApps = appsSent ?? 12;
+  const baseOffers = offersRecv ?? 0;
   const applicationTimeline = [
-    { month: "Jan", sent: Math.max(0, (p?.applications || 12) - 10), interviews: 0, offers: 0 },
-    { month: "Feb", sent: Math.max(0, (p?.applications || 12) - 7), interviews: 1, offers: 0 },
-    { month: "Mar", sent: Math.max(0, (p?.applications || 12) - 5), interviews: 0, offers: 0 },
-    { month: "Apr", sent: Math.max(0, (p?.applications || 12) - 3), interviews: 2, offers: Math.min(1, p?.offers || 0) },
-    { month: "May", sent: Math.max(0, (p?.applications || 12) - 1), interviews: 1, offers: 0 },
-    { month: "Jun", sent: p?.applications || 12, interviews: 2, offers: p?.offers || 0 },
+    { month: "Jan", sent: Math.max(0, baseApps - 10), interviews: 0, offers: 0 },
+    { month: "Feb", sent: Math.max(0, baseApps - 7), interviews: 1, offers: 0 },
+    { month: "Mar", sent: Math.max(0, baseApps - 5), interviews: 0, offers: 0 },
+    { month: "Apr", sent: Math.max(0, baseApps - 3), interviews: 2, offers: Math.min(1, baseOffers) },
+    { month: "May", sent: Math.max(0, baseApps - 1), interviews: 1, offers: 0 },
+    { month: "Jun", sent: baseApps, interviews: 2, offers: baseOffers },
   ];
 
+  const baseResume = resumeScore ?? 81;
   const resumeScoreTrend = [
-    { month: "Jan", score: Math.max(0, (p?.resume_score || 81) - 19) },
-    { month: "Feb", score: Math.max(0, (p?.resume_score || 81) - 16) },
-    { month: "Mar", score: Math.max(0, (p?.resume_score || 81) - 13) },
-    { month: "Apr", score: Math.max(0, (p?.resume_score || 81) - 9) },
-    { month: "May", score: Math.max(0, (p?.resume_score || 81) - 3) },
-    { month: "Jun", score: p?.resume_score || 81 },
+    { month: "Jan", score: Math.max(0, baseResume - 19) },
+    { month: "Feb", score: Math.max(0, baseResume - 16) },
+    { month: "Mar", score: Math.max(0, baseResume - 13) },
+    { month: "Apr", score: Math.max(0, baseResume - 9) },
+    { month: "May", score: Math.max(0, baseResume - 3) },
+    { month: "Jun", score: baseResume },
   ];
 
   const aiPlacementInsights = [
-    { icon: Brain, text: `Complete more coding practice to increase coding score from ${p?.coding_score || 0}%.`, color: "from-[#6C4CF1] to-[#8B5CF6]" },
-    { icon: FileText, text: `Your resume ATS score is ${p?.resume_score || 0}%. Add project metrics to reach 90+.`, color: "from-[#3B82F6] to-[#60A5FA]" },
-    { icon: Users, text: `You're eligible for ${p?.eligible_companies || 0} companies. Start preparing for top picks.`, color: "from-[#22C55E] to-[#4ADE80]" },
-    { icon: Target, text: `Placement readiness is ${p?.placement_readiness_score || 0}%. Focus on mock interviews to improve.`, color: "from-[#F59E0B] to-[#FBBF24]" },
+    { icon: Brain, text: `Complete more coding practice to increase coding score from ${codingScore ?? 0}%.`, color: "from-[#6C4CF1] to-[#8B5CF6]" },
+    { icon: FileText, text: `Your resume ATS score is ${resumeScore ?? 0}%. Add project metrics to reach 90+.`, color: "from-[#3B82F6] to-[#60A5FA]" },
+    { icon: Users, text: `You're eligible for ${eligibleCos ?? 0} companies. Start preparing for top picks.`, color: "from-[#22C55E] to-[#4ADE80]" },
+    { icon: Target, text: `Placement readiness is ${readiness ?? 0}%. Focus on mock interviews to improve.`, color: "from-[#F59E0B] to-[#FBBF24]" },
   ];
 
   const companies = [
-    ...(p?.eligible_companies ? [
+    ...(eligibleCos ? [
       { name: "Google", eligible: true, role: "SDE", deadline: "Jul 15" },
       { name: "Microsoft", eligible: true, role: "SWE", deadline: "Jul 20" },
       { name: "Amazon", eligible: true, role: "SDE", deadline: "Jul 25" },
@@ -131,13 +143,13 @@ export function StudentPlacementDashboard() {
           <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">READINESS</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Placement Readiness Gauge</h3></div>
           <div className="flex flex-col items-center">
             <ResponsiveContainer width="100%" height={260}>
-              <RadialBarChart innerRadius="60%" outerRadius="94%" data={[{ name: "Score", value: p?.placement_readiness_score || 0, fill: "#6C4CF1" }]} startAngle={180} endAngle={-180}>
+              <RadialBarChart innerRadius="60%" outerRadius="94%" data={[{ name: "Score", value: readiness ?? 0, fill: "#6C4CF1" }]} startAngle={180} endAngle={-180}>
                 <RadialBar dataKey="value" cornerRadius={18} background={{ fill: "#F3F4F6" }} />
                 <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E8ECF1" }} />
               </RadialBarChart>
             </ResponsiveContainer>
             <div className="-mt-48 grid place-items-center">
-              <p className="text-5xl font-bold text-[#111827]">{p?.placement_readiness_score || 0}%</p>
+              <p className="text-5xl font-bold text-[#111827]">{readiness ?? 0}%</p>
               <p className="mt-1 text-sm font-medium text-[#6B7280]">readiness score</p>
             </div>
           </div>
@@ -162,10 +174,10 @@ export function StudentPlacementDashboard() {
               <div key={p}>
                 <div className="mb-1.5 flex items-center justify-between">
                   <p className="text-sm font-semibold text-[#111827]">{p}</p>
-                  <span className="text-xs font-bold text-[#6C4CF1]">{Math.round((profile?.coding_score || 72) * (0.8 + Math.random() * 0.4))}/250</span>
+                  <span className="text-xs font-bold text-[#6C4CF1]">{Math.round((codingScore ?? 72) * (0.8 + Math.random() * 0.4))}/250</span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-[#F3F4F6]">
-                  <div className="h-full rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6]" style={{ width: `${profile?.coding_score || 72}%` }} />
+                  <div className="h-full rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6]" style={{ width: `${codingScore ?? 72}%` }} />
                 </div>
               </div>
             ))}
@@ -200,10 +212,10 @@ export function StudentPlacementDashboard() {
           <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">PERFORMANCE</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Interview Performance</h3></div>
           <ResponsiveContainer width="100%" height={280}>
             <RBarChart data={[
-              { round: "Phone Screen", score: Math.min(100, (p?.mock_interview_score || 72) + 10), avg: 70 },
-              { round: "Technical", score: p?.coding_score || 72, avg: 65 },
-              { round: "System Design", score: Math.min(100, (p?.skill_score || 74) - 6), avg: 60 },
-              { round: "Behavioral", score: Math.min(100, (p?.placement_readiness_score || 78) + 7), avg: 72 },
+              { round: "Phone Screen", score: Math.min(100, (mockScore ?? 72) + 10), avg: 70 },
+              { round: "Technical", score: codingScore ?? 72, avg: 65 },
+              { round: "System Design", score: Math.min(100, (commScore ?? 74) - 6), avg: 60 },
+              { round: "Behavioral", score: Math.min(100, (readiness ?? 78) + 7), avg: 72 },
             ]} layout="vertical" barGap={6}>
               <CartesianGrid stroke="#F3F4F6" horizontal={false} />
               <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
@@ -234,8 +246,8 @@ export function StudentPlacementDashboard() {
             </AreaChart>
           </ResponsiveContainer>
           <div className="mt-3 rounded-xl border border-[#E8ECF1] bg-[#F5F7FA] p-3">
-            <div className="flex items-center justify-between text-sm"><span className="font-medium text-[#6B7280]">ATS Optimization</span><span className="font-bold text-[#6C4CF1]">{p?.resume_score || 0}%</span></div>
-            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]"><div className="h-full rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6]" style={{ width: `${p?.resume_score || 0}%` }} /></div>
+            <div className="flex items-center justify-between text-sm"><span className="font-medium text-[#6B7280]">ATS Optimization</span><span className="font-bold text-[#6C4CF1]">{resumeScore ?? 0}%</span></div>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]"><div className="h-full rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6]" style={{ width: `${resumeScore ?? 0}%` }} /></div>
           </div>
         </Card>
 
@@ -273,9 +285,9 @@ export function StudentPlacementDashboard() {
           </div>
           <div className="mt-4 grid grid-cols-3 gap-2">
             {[
-              { label: "Applications", value: String(p?.applications || 0), color: "#6C4CF1" },
-              { label: "Eligible", value: String(p?.eligible_companies || 0), color: "#3B82F6" },
-              { label: "Offers", value: String(p?.offers || 0), color: "#22C55E" },
+              { label: "Applications", value: String(appsSent ?? 0), color: "#6C4CF1" },
+              { label: "Eligible", value: String(eligibleCos ?? 0), color: "#3B82F6" },
+              { label: "Offers", value: String(offersRecv ?? 0), color: "#22C55E" },
             ].map((stat) => (
               <div key={stat.label} className="rounded-xl border border-[#E8ECF1] p-3 text-center">
                 <p className="text-lg font-bold" style={{ color: stat.color }}>{stat.value}</p>

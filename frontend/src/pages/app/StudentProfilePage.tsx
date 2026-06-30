@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { api } from "../../api/client";
 import { Card } from "../../components/ui/Card";
+import { Avatar } from "../../components/ui/Avatar";
 import { useAuth } from "../../context/AuthContext";
 import { useStudentProfile } from "../../context/StudentProfileContext";
 import { cn } from "../../utils/cn";
@@ -194,11 +195,40 @@ function TextAreaInput({ label, value, onChange, editable, required, error }: {
   );
 }
 
-function NumberInput({ label, value, onChange, editable, required, min, max, step, suffix, error }: {
-  label: string; value: number; onChange?: (v: number) => void; editable?: boolean; required?: boolean;
-  min?: number; max?: number; step?: number; suffix?: string; error?: string;
+const PLACEHOLDER_MAP: Record<string, string> = {
+  CGPA: "Enter CGPA",
+  "Current SGPA": "Enter Current SGPA",
+  Attendance: "Enter Attendance %",
+  "Credits Earned": "Enter Credits Earned",
+  "Total Credits": "Enter Total Credits",
+  "Placement Readiness": "Enter Readiness %",
+  "Resume Score": "Enter Resume Score",
+  "Coding Score": "Enter Coding Score",
+  "Communication Score": "Enter Communication Score",
+  "Mock Interview Score": "Enter Mock Interview Score",
+};
+
+function NumberInput({ label, value, onChange, editable, required, min, max, step, suffix, error, placeholder }: {
+  label: string; value: number | null; onChange?: (v: number | null) => void; editable?: boolean; required?: boolean;
+  min?: number; max?: number; step?: number; suffix?: string; error?: string; placeholder?: string;
 }) {
-  const display = suffix ? (value ? `${value}${suffix}` : "") : String(value ?? "");
+  const handleChange = (raw: string) => {
+    if (raw === "") {
+      onChange?.(null);
+      return;
+    }
+    const parsed = parseFloat(raw);
+    if (!isNaN(parsed)) {
+      onChange?.(parsed);
+    }
+  };
+
+  const hasValue = value != null && !isNaN(value);
+  const clamped = hasValue ? Math.max(min ?? -Infinity, Math.min(max ?? Infinity, value)) : 0;
+  const pct = min !== undefined && max !== undefined ? Math.min(100, ((clamped - min) / (max - min)) * 100) : 0;
+
+  const displayVal = hasValue ? (suffix ? `${value}${suffix}` : String(value)) : "";
+
   return (
     <div className="relative">
       <FormLabel label={label} required={required} error={error} />
@@ -207,7 +237,8 @@ function NumberInput({ label, value, onChange, editable, required, min, max, ste
           <input
             type="number"
             value={value ?? ""}
-            onChange={(e) => onChange?.(parseFloat(e.target.value) || 0)}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder={placeholder || PLACEHOLDER_MAP[label] || `Enter ${label.toLowerCase()}`}
             min={min}
             max={max}
             step={step || "any"}
@@ -218,13 +249,13 @@ function NumberInput({ label, value, onChange, editable, required, min, max, ste
               "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
             )}
           />
-          {min !== undefined && max !== undefined && (
+          {min !== undefined && max !== undefined && hasValue && (
             <div className="mt-1 h-1.5 rounded-full bg-[#F3F4F6] overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-300"
                 style={{
-                  width: `${Math.min(100, ((value ?? 0) - min) / (max - min) * 100)}%`,
-                  background: (value ?? 0) >= (max ?? 100) * 0.8 ? "#22C55E" : (value ?? 0) >= (max ?? 100) * 0.5 ? "#F59E0B" : "#6C4CF1",
+                  width: `${Math.min(100, ((value - min) / (max - min)) * 100)}%`,
+                  background: value >= max * 0.8 ? "#22C55E" : value >= max * 0.5 ? "#F59E0B" : "#6C4CF1",
                 }}
               />
             </div>
@@ -232,7 +263,7 @@ function NumberInput({ label, value, onChange, editable, required, min, max, ste
         </div>
       ) : (
         <div className="rounded-xl bg-[#F5F7FA] px-3.5 py-2.5 text-sm font-medium text-[#111827]">
-          {value != null && value > 0 ? display : <span className="text-[#9CA3AF]">Not added</span>}
+          {value != null ? displayVal : <span className="text-[#9CA3AF]">Not added</span>}
         </div>
       )}
     </div>
@@ -329,17 +360,17 @@ function Dropdown({ label, value, options, onChange, editable, required, searcha
 }
 
 function NumberDropdown({ label, value, options, onChange, editable, required, error }: {
-  label: string; value: number; options: { value: number; label: string }[];
-  onChange?: (v: number) => void; editable?: boolean; required?: boolean; error?: string;
+  label: string; value: number | null; options: { value: number; label: string }[];
+  onChange?: (v: number | null) => void; editable?: boolean; required?: boolean; error?: string;
 }) {
   const dropdownOptions = useMemo(() => options.map((o) => ({ value: String(o.value), label: o.label })), [options]);
-  const strValue = String(value ?? "");
+  const strValue = value != null ? String(value) : "";
   return (
     <Dropdown
       label={label}
       value={strValue}
       options={dropdownOptions}
-      onChange={(v) => onChange?.(parseInt(v) || 0)}
+      onChange={(v) => onChange?.(v ? parseInt(v) : null)}
       editable={editable}
       required={required}
       error={error}
@@ -688,7 +719,7 @@ function Toast({ message, type, visible }: { message: string; type: "success" | 
 
 export function StudentProfilePage() {
   const { profile, loading, updateProfile, isUpdating, completion, refetch } = useStudentProfile();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<StudentProfile>>({});
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -748,14 +779,53 @@ export function StudentProfilePage() {
     } catch { }
   }, [editing]);
 
+  const numericValidation = useCallback((): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    const numVal = (k: string) => form[k as keyof Partial<StudentProfile>] as number | null | undefined;
+
+    const cgpa = numVal("cgpa");
+    if (cgpa != null && (cgpa < 0 || cgpa > 10)) errs.cgpa = "CGPA must be 0–10";
+
+    const sgpa = numVal("current_semester_gpa");
+    if (sgpa != null && (sgpa < 0 || sgpa > 10)) errs.current_semester_gpa = "SGPA must be 0–10";
+
+    const att = numVal("attendance_percentage");
+    if (att != null && (att < 0 || att > 100)) errs.attendance_percentage = "Attendance must be 0–100%";
+
+    const credE = numVal("credits_earned");
+    if (credE != null && credE < 0) errs.credits_earned = "Credits cannot be negative";
+
+    const credT = numVal("total_credits");
+    if (credT != null && credT < 0) errs.total_credits = "Credits cannot be negative";
+
+    for (const field of ["placement_readiness_score", "resume_score", "coding_score", "communication_score", "mock_interview_score"] as const) {
+      const v = numVal(field);
+      if (v != null && (v < 0 || v > 100)) errs[field] = `${field.replace(/_/g, " ")} must be 0–100`;
+    }
+
+    const pkg = form.expected_package;
+    if (pkg && typeof pkg === "string" && pkg.trim()) {
+      const num = parseFloat(pkg.replace(/[^0-9.]/g, ""));
+      if (isNaN(num) || num < 0) errs.expected_package = "Invalid package value";
+    }
+
+    return errs;
+  }, [form]);
+
+  const hasChanges = useMemo(() => {
+    if (Object.keys(form).length === 0) return false;
+    return Object.entries(form).some(([k, v]) => {
+      const orig = (profile as any)?.[k];
+      if (v === null && (orig == null || orig === 0 || orig === "")) return false;
+      if (v === "" && (orig == null || orig === "")) return false;
+      return v !== orig;
+    });
+  }, [form, profile]);
+
   if (loading) return <ProfileSkeleton />;
   if (!profile) return null;
 
   const p = { ...profile, ...form } as StudentProfile;
-  const photoUrl = p.profile_photo_url
-    ? (p.profile_photo_url.startsWith("http") ? p.profile_photo_url : `${BASE_URL}${p.profile_photo_url}`)
-    : null;
-  const initials = user?.full_name?.slice(0, 2).toUpperCase() || "ST";
 
   // ─── Edit controls ───────────────────────────
   const startEdit = () => {
@@ -773,6 +843,7 @@ export function StudentProfilePage() {
       gender: profile.gender,
       phone_number: profile.phone_number,
       address: profile.address,
+      profile_photo_url: profile.profile_photo_url,
       faculty_advisor: profile.faculty_advisor,
       cgpa: profile.cgpa,
       current_semester_gpa: profile.current_semester_gpa,
@@ -813,18 +884,42 @@ export function StudentProfilePage() {
   const handleSave = async () => {
     if (!validate()) {
       showToast("Please fill in all required fields before saving.", "error");
-      setSaving(false);
+      return;
+    }
+    const numErrors = numericValidation();
+    if (Object.keys(numErrors).length > 0) {
+      setErrors(numErrors);
+      showToast("Please fix validation errors before saving.", "error");
       return;
     }
     setSaving(true);
     try {
-      await updateProfile(form);
+      const ALL_NUMERIC_KEYS = ["cgpa", "current_semester_gpa", "attendance_percentage", "credits_earned", "total_credits", "placement_readiness_score", "risk_score", "skill_score", "resume_score", "coding_score", "mock_interview_score", "communication_score", "applications", "eligible_companies", "offers"] as const;
+
+      const cleaned: Record<string, any> = {};
+      for (const [k, v] of Object.entries(form)) {
+        const orig = (profile as any)?.[k];
+        const isNumeric = ALL_NUMERIC_KEYS.includes(k as any);
+        let normalized = v;
+        if (isNumeric && (v === "" || v == null)) {
+          normalized = null;
+        }
+        if (normalized === null && (orig == null || orig === 0 || orig === "")) continue;
+        if (normalized === "" && (orig == null || orig === "")) continue;
+        if (normalized !== orig) {
+          cleaned[k] = normalized;
+        }
+      }
+      await updateProfile(cleaned as Partial<StudentProfile>);
+      await refetch();
       setEditing(false);
       setForm({});
       setErrors({});
       localStorage.removeItem("profile_draft");
+      try { await refreshUser(); } catch { /* auth refresh is best-effort */ }
       showToast("Profile updated successfully! Changes are reflected across all dashboards.");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
       showToast("Failed to save profile. Please try again.", "error");
     } finally {
       setSaving(false);
@@ -851,6 +946,7 @@ export function StudentProfilePage() {
       });
       const photoUrl = res.data.profile_photo_url;
       await updateProfile({ profile_photo_url: photoUrl });
+      setForm((f) => ({ ...f, profile_photo_url: photoUrl }));
       refetch();
       showToast("Profile photo updated!");
     } catch {
@@ -862,6 +958,7 @@ export function StudentProfilePage() {
 
   const removePhoto = async () => {
     await updateProfile({ profile_photo_url: null });
+    setForm((f) => ({ ...f, profile_photo_url: null }));
     refetch();
     showToast("Profile photo removed.");
   };
@@ -869,7 +966,6 @@ export function StudentProfilePage() {
   const set = (key: string, value: any) => {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: "" }));
-    // Auto-set expected_package when year changes
     if (key === "year" && typeof value === "number" && !form.expected_package && !profile.expected_package) {
       setForm((f) => ({ ...f, expected_package: getDefaultPackage(value) }));
     }
@@ -898,7 +994,7 @@ export function StudentProfilePage() {
                 className="rounded-xl border border-[#E8ECF1] px-5 py-2.5 text-sm font-semibold text-[#6B7280] transition hover:border-[#EF4444]/30 hover:text-[#EF4444]">
                 Cancel
               </button>
-              <button onClick={handleSave} disabled={saving || isUpdating}
+              <button onClick={handleSave} disabled={saving || isUpdating || !hasChanges}
                 className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#6C4CF1]/25 transition hover:shadow-xl disabled:opacity-60">
                 {saving || isUpdating ? (
                   <><Loader2 size={15} className="animate-spin" /> Saving...</>
@@ -960,20 +1056,14 @@ export function StudentProfilePage() {
           {/* Photo Card */}
           <Card className="p-6 text-center">
             <div className="relative mx-auto mb-4 h-28 w-28">
-              {photoUrl ? (
-                <img src={photoUrl} alt="Profile" className="h-full w-full rounded-2xl object-cover shadow-lg ring-2 ring-[#6C4CF1]/20" />
-              ) : (
-                <div className="grid h-full w-full place-items-center rounded-2xl bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] text-4xl font-bold text-white shadow-lg shadow-[#6C4CF1]/20">
-                  {initials}
-                </div>
-              )}
+              <Avatar src={p.profile_photo_url} name={user?.full_name} size="xl" rounded="2xl" />
               {editing && (
                 <div className="absolute -bottom-1 -right-1 flex gap-1">
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
                     className="grid h-9 w-9 place-items-center rounded-xl bg-white border border-[#E8ECF1] text-[#6B7280] shadow-sm hover:text-[#6C4CF1]">
                     {uploadingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={15} />}
                   </button>
-                  {photoUrl && (
+                  {p.profile_photo_url && (
                     <button onClick={removePhoto}
                       className="grid h-9 w-9 place-items-center rounded-xl bg-white border border-[#E8ECF1] text-[#EF4444] shadow-sm hover:bg-[#FEE2E2]">
                       <X size={15} />
@@ -994,12 +1084,12 @@ export function StudentProfilePage() {
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6C4CF1]">Quick Stats</p>
             <div className="space-y-3">
               {[
-                { label: "CGPA", value: p.cgpa ? p.cgpa.toFixed(2) : "—" },
-                { label: "Attendance", value: p.attendance_percentage ? `${p.attendance_percentage}%` : "—" },
-                { label: "Placement Readiness", value: p.placement_readiness_score ? `${p.placement_readiness_score}%` : "—" },
-                { label: "Resume Score", value: p.resume_score ? `${p.resume_score}%` : "—" },
-                { label: "Applications", value: p.applications || "—" },
-                { label: "Offers", value: p.offers || "—" },
+                { label: "CGPA", value: p.cgpa != null ? p.cgpa.toFixed(2) : "—" },
+                { label: "Attendance", value: p.attendance_percentage != null ? `${p.attendance_percentage}%` : "—" },
+                { label: "Placement Readiness", value: p.placement_readiness_score != null ? `${p.placement_readiness_score}%` : "—" },
+                { label: "Resume Score", value: p.resume_score != null ? `${p.resume_score}%` : "—" },
+                { label: "Applications", value: p.applications != null ? String(p.applications) : "—" },
+                { label: "Offers", value: p.offers != null ? String(p.offers) : "—" },
               ].map((stat) => (
                 <div key={stat.label} className="flex items-center justify-between rounded-lg bg-[#F5F7FA] px-3 py-2">
                   <span className="text-xs font-medium text-[#6B7280]">{stat.label}</span>
@@ -1031,7 +1121,7 @@ export function StudentProfilePage() {
                 placeholder="e.g. Computer Science" />
               <NumberDropdown label="Year" value={p.year} options={YEARS}
                 editable={editing} onChange={(v) => set("year", v)} required error={errors.year} />
-              <NumberDropdown label="Semester" value={p.semester || 1} options={SEMESTERS}
+              <NumberDropdown label="Semester" value={p.semester} options={SEMESTERS}
                 editable={editing} onChange={(v) => set("semester", v)} required error={errors.semester} />
               <Dropdown label="Section" value={p.section || ""} options={SECTIONS.map((s) => ({ value: s, label: s }))}
                 editable={editing} onChange={(v) => set("section", v)} placeholder="Select section" error={errors.section} />

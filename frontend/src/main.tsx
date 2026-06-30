@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Navigate, Outlet, RouterProvider, createBrowserRouter } from "react-router-dom";
+import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
 import "./index.css";
 import { AuthProvider, rolePath } from "./context/AuthContext";
 import { StudentProfileProvider } from "./context/StudentProfileContext";
@@ -48,14 +48,6 @@ function RoleRedirect() {
   return <Navigate to={target} replace />;
 }
 
-function StudentLayout() {
-  return (
-    <StudentProfileProvider>
-      <Outlet />
-    </StudentProfileProvider>
-  );
-}
-
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
   { path: "/login", element: <LoginPage /> },
@@ -65,12 +57,18 @@ const router = createBrowserRouter([
   { path: "/otp", element: <OtpPage /> },
   {
     element: <ProtectedRoute />, children: [{
-      path: "/app", element: <ErrorBoundary name="AppLayout"><AppLayout /></ErrorBoundary>, children: [
+      path: "/app", element: (
+        <ErrorBoundary name="AppLayout">
+          <StudentProfileProvider>
+            <AppLayout />
+          </StudentProfileProvider>
+        </ErrorBoundary>
+      ), children: [
         { index: true, element: <RoleRedirect /> },
 
-        // === STUDENT ROUTES (wrapped in StudentProfileProvider) ===
+        // === STUDENT ROUTES ===
         {
-          element: <StudentLayout />, children: [
+          children: [
             { path: "student", element: <ErrorBoundary name="StudentDashboard"><StudentAcademicsDashboard /></ErrorBoundary> },
             { path: "student/placement", element: <ErrorBoundary name="StudentPlacement"><StudentPlacementDashboard /></ErrorBoundary> },
             { path: "student/cgpa-analytics", element: <ErrorBoundary name="CGPA"><StudentCgpaAnalytics /></ErrorBoundary> },

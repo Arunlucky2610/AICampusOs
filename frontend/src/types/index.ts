@@ -40,22 +40,22 @@ export type StudentProfile = {
   phone_number: string | null;
   address: string | null;
   profile_photo_url: string | null;
-  cgpa: number;
-  current_semester_gpa: number;
-  attendance_percentage: number;
-  credits_earned: number;
+  cgpa: number | null;
+  current_semester_gpa: number | null;
+  attendance_percentage: number | null;
+  credits_earned: number | null;
   total_credits: number;
   faculty_advisor: string | null;
-  placement_readiness_score: number;
-  risk_score: number;
-  skill_score: number;
-  resume_score: number;
-  coding_score: number;
-  mock_interview_score: number;
-  communication_score: number;
-  applications: number;
-  eligible_companies: number;
-  offers: number;
+  placement_readiness_score: number | null;
+  risk_score: number | null;
+  skill_score: number | null;
+  resume_score: number | null;
+  coding_score: number | null;
+  mock_interview_score: number | null;
+  communication_score: number | null;
+  applications: number | null;
+  eligible_companies: number | null;
+  offers: number | null;
   preferred_role: string | null;
   expected_package: string | null;
   semester_gpas: SemesterGpa[];
@@ -123,6 +123,7 @@ export type Dashboard = {
   overall?: OverallMetrics;
   kpis: KpiItem[];
   charts: Record<string, any>;
+  coding_summary?: CodingSummary;
   recommendations?: RecommendationItem[];
   roadmap?: RoadmapItem[];
   placementReadiness?: PlacementReadiness;
@@ -346,4 +347,77 @@ export type WeekDay = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat";
 export type HeatmapData = {
   subject: string;
   data: { day: WeekDay; value: number }[];
+};
+
+// =========================================
+// CODING PROGRESS TYPES
+// =========================================
+
+export type LeetCodeStats = {
+  total_solved: number;
+  easy_solved: number;
+  medium_solved: number;
+  hard_solved: number;
+  ranking: number | null;
+  contest_rating: number | null;
+  reputation: number | null;
+  recent_submissions: LeetCodeSubmission[];
+};
+
+export type LeetCodeSubmission = {
+  title: string;
+  title_slug: string;
+  timestamp: string;
+  status: string;
+  lang: string;
+};
+
+export type GitHubStats = {
+  public_repos: number;
+  followers: number;
+  following: number;
+  recent_repos: GitHubRepo[];
+  recent_activity_count: number;
+  last_active_date: string | null;
+  languages: Record<string, number>;
+  profile_url: string | null;
+  avatar_url: string | null;
+};
+
+export type GitHubRepo = {
+  name: string;
+  description: string | null;
+  language: string | null;
+  stars: number;
+  forks: number;
+  updated_at: string;
+  html_url: string;
+};
+
+export type LinkedInStatus = {
+  connected: boolean;
+  url: string | null;
+};
+
+export type CodingProgressData = {
+  github_url: string | null;
+  leetcode_url: string | null;
+  linkedin_url: string | null;
+  github_username: string | null;
+  leetcode_username: string | null;
+  github_stats: GitHubStats | null;
+  leetcode_stats: LeetCodeStats | null;
+  linkedin_status: LinkedInStatus | null;
+  coding_score: number;
+  placement_readiness_score: number;
+  last_synced_at: string | null;
+};
+
+export type CodingSummary = {
+  leetcode_total_solved: number;
+  github_public_repos: number;
+  github_recent_activity: number;
+  coding_score: number;
+  placement_readiness_score: number;
+  last_synced_at: string | null;
 };

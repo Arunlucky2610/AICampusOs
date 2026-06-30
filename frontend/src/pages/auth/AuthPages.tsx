@@ -1,21 +1,24 @@
 import { FormEvent, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
   Brain,
   BriefcaseBusiness,
+  Check,
   CheckCircle2,
   Eye,
   EyeOff,
   GraduationCap,
   LineChart,
+  Lock,
   LogIn,
   MessageSquare,
   ShieldCheck,
   Sparkles,
   Users,
+  X,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -41,11 +44,11 @@ const loginBenefits = [
 ];
 
 const roleOptions: { value: Role; label: string; desc: string; icon: typeof GraduationCap }[] = [
-  { value: "STUDENT", label: "Student", desc: "Access learning roadmap, skills, placements", icon: GraduationCap },
-  { value: "FACULTY", label: "Faculty", desc: "Track class performance and at-risk students", icon: Users },
-  { value: "PARENT", label: "Parent", desc: "Monitor student progress and updates", icon: MessageSquare },
-  { value: "PLACEMENT_OFFICER", label: "Placement Officer", desc: "Manage readiness and recruitment insights", icon: BriefcaseBusiness },
-  { value: "ADMIN", label: "Admin", desc: "Manage institution analytics and users", icon: ShieldCheck },
+  { value: "STUDENT", label: "Student", desc: "Learn \u2022 Grow \u2022 Get Placed", icon: GraduationCap },
+  { value: "FACULTY", label: "Faculty", desc: "Track \u2022 Guide \u2022 Analyze", icon: Users },
+  { value: "PARENT", label: "Parent", desc: "Monitor Progress", icon: MessageSquare },
+  { value: "PLACEMENT_OFFICER", label: "Placement Officer", desc: "Placement Analytics", icon: BriefcaseBusiness },
+  { value: "ADMIN", label: "Admin", desc: "Manage Platform", icon: ShieldCheck },
 ];
 
 function LeftPanel({ title, desc, benefits }: { title: string; desc: string; benefits: readonly { icon: any; title: string; desc: string }[] }) {
@@ -81,6 +84,12 @@ function BackToLanding() {
   </Link>;
 }
 
+function RequiredMark() {
+  return <span className="ml-0.5 text-red-500">*</span>;
+}
+
+// ===================== LoginPage =====================
+
 export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -91,10 +100,12 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const isFormValid = email.trim() !== "" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password !== "";
+
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!email.trim()) errs.email = "Please enter a valid email";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Please enter a valid email";
+    if (!email.trim()) errs.email = "Email Address is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email";
     if (!password) errs.password = "Password is required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -112,7 +123,7 @@ export function LoginPage() {
       const role = await login(email.trim(), password);
       navigate(rolePath[role]);
     } catch (err: any) {
-      setErrors({ form: err.response?.data?.detail || "Invalid email or password." });
+      setErrors({ form: err.response?.data?.detail || "Invalid email or password" });
     } finally {
       setLoading(false);
     }
@@ -133,13 +144,13 @@ export function LoginPage() {
 
           <form onSubmit={submit} className="space-y-5">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Email Address</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Email Address<RequiredMark /></label>
               <input value={email} onChange={(e) => { setEmail(e.target.value); clearError("email"); }} type="email" placeholder="you@university.edu" className={`h-12 w-full rounded-xl border bg-white px-4 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-4 focus:ring-primary/10 ${errors.email ? "border-red-400 focus:border-red-400" : "border-line"}`} />
               <FieldErr msg={errors.email} />
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Password</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Password<RequiredMark /></label>
               <div className={`flex items-center rounded-xl border bg-white pr-4 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 ${errors.password ? "border-red-400" : "border-line"}`}>
                 <input value={password} onChange={(e) => { setPassword(e.target.value); clearError("password"); }} type={showPassword ? "text" : "password"} placeholder="Enter your password" className="h-12 w-full bg-transparent px-4 text-sm outline-none placeholder:text-muted/60" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="shrink-0 text-muted hover:text-ink" tabIndex={-1}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
@@ -157,7 +168,9 @@ export function LoginPage() {
 
             {errors.form && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3"><p className="text-sm text-red-600">{errors.form}</p></div>}
 
-            <Button type="submit" disabled={loading} className="h-12 w-full text-base">{loading ? "Signing in..." : "Sign in"} {!loading && <ArrowRight size={18}/>}</Button>
+            <p className="text-xs text-muted"><RequiredMark /> Required fields</p>
+
+            <Button type="submit" disabled={!isFormValid || loading} className="h-12 w-full text-base">{loading ? "Signing in..." : "Sign in"} {!loading && <ArrowRight size={18}/>}</Button>
 
             <p className="text-center text-sm text-muted">New to AI CampusOS? <Link to="/register" className="font-semibold text-primary hover:underline">Create account</Link></p>
           </form>
@@ -166,6 +179,8 @@ export function LoginPage() {
     </div>
   </div>;
 }
+
+// ===================== RegisterPage =====================
 
 export function RegisterPage() {
   const [name, setName] = useState("");
@@ -180,6 +195,8 @@ export function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  const isFormValid = name.trim() !== "" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 8 && confirmPassword !== "" && confirmPassword === password && role !== "";
 
   function getPasswordStrength(pw: string): number {
     if (!pw) return 0;
@@ -206,14 +223,14 @@ export function RegisterPage() {
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = "Name is required";
-    if (!email.trim()) errs.email = "Enter a valid email";
+    if (!name.trim()) errs.name = "Full Name is required";
+    if (!email.trim()) errs.email = "Email Address is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email";
-    if (!password) errs.password = "Password must be at least 8 characters";
+    if (!password) errs.password = "Password is required";
     else if (password.length < 8) errs.password = "Password must be at least 8 characters";
     if (!confirmPassword) errs.confirmPassword = "Passwords do not match";
     else if (confirmPassword !== password) errs.confirmPassword = "Passwords do not match";
-    if (!role) errs.role = "Please select a role";
+    if (!role) errs.role = "Please select your role";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -268,19 +285,19 @@ export function RegisterPage() {
 
           <form onSubmit={submit} className="space-y-5">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Full Name</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Full Name<RequiredMark /></label>
               <input value={name} onChange={(e) => { setName(e.target.value); clearError("name"); }} placeholder="Enter your full name" className={`h-12 w-full rounded-xl border bg-white px-4 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-4 focus:ring-primary/10 ${errors.name ? "border-red-400 focus:border-red-400" : "border-line"}`} />
               <FieldErr msg={errors.name} />
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Email Address</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Email Address<RequiredMark /></label>
               <input value={email} onChange={(e) => { setEmail(e.target.value); clearError("email"); }} type="email" placeholder="you@university.edu" className={`h-12 w-full rounded-xl border bg-white px-4 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-4 focus:ring-primary/10 ${errors.email ? "border-red-400 focus:border-red-400" : "border-line"}`} />
               <FieldErr msg={errors.email} />
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Password</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Password<RequiredMark /></label>
               <div className={`flex items-center rounded-xl border bg-white pr-4 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 ${errors.password ? "border-red-400" : "border-line"}`}>
                 <input value={password} onChange={(e) => { setPassword(e.target.value); clearError("password"); }} type={showPassword ? "text" : "password"} placeholder="Create a password" className="h-12 w-full bg-transparent px-4 text-sm outline-none placeholder:text-muted/60" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="shrink-0 text-muted hover:text-ink" tabIndex={-1}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
@@ -293,7 +310,7 @@ export function RegisterPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Confirm Password</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Confirm Password<RequiredMark /></label>
               <div className={`flex items-center rounded-xl border bg-white pr-4 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 ${errors.confirmPassword ? "border-red-400" : "border-line"}`}>
                 <input value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); clearError("confirmPassword"); }} type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" className="h-12 w-full bg-transparent px-4 text-sm outline-none placeholder:text-muted/60" />
                 <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="shrink-0 text-muted hover:text-ink" tabIndex={-1}>{showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
@@ -302,13 +319,30 @@ export function RegisterPage() {
             </div>
 
             <div>
-              <label className="mb-2.5 block text-sm font-medium text-ink">I am a</label>
+              <label className="mb-2.5 block text-sm font-medium text-ink">I am joining as<RequiredMark /></label>
+              <p className="mb-3 text-xs text-muted">Select the workspace that matches your role.</p>
               <FieldErr msg={errors.role} />
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {roleOptions.map((opt) => (
-                  <button key={opt.value} type="button" onClick={() => { setRole(opt.value); clearError("role"); }} className={`flex items-start gap-3 rounded-xl border p-4 text-left transition ${role === opt.value ? "border-primary bg-primary/[0.04] ring-2 ring-primary/20" : "border-line hover:border-primary/30 hover:bg-soft"}`}>
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm ${role === opt.value ? "bg-primary text-white" : "bg-primary/10 text-primary"}`}><opt.icon size={17}/></div>
-                    <div><p className="text-sm font-semibold">{opt.label}</p><p className="mt-0.5 text-xs text-muted leading-relaxed">{opt.desc}</p></div>
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => { setRole(opt.value); clearError("role"); }}
+                    className={`relative flex flex-col items-center justify-center gap-1 rounded-2xl border p-3 text-center transition-all duration-[250ms] ${
+                      role === opt.value
+                        ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
+                        : "border-line bg-white shadow-sm hover:-translate-y-[3px] hover:shadow-lg"
+                    }`}
+                    style={{ minHeight: '85px' }}
+                  >
+                    {role === opt.value && (
+                      <div className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
+                        <Check size={12} strokeWidth={3} />
+                      </div>
+                    )}
+                    <div className={role === opt.value ? "text-primary" : "text-muted"}><opt.icon size={18}/></div>
+                    <p className="text-sm font-semibold">{opt.label}</p>
+                    <p className="text-[10px] leading-tight text-muted">{opt.desc}</p>
                   </button>
                 ))}
               </div>
@@ -316,7 +350,9 @@ export function RegisterPage() {
 
             {errors.form && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3"><p className="text-sm text-red-600">{errors.form}</p></div>}
 
-            <Button type="submit" disabled={loading} className="h-12 w-full text-base">{loading ? "Creating account..." : "Create account"} {!loading && <ArrowRight size={18}/>}</Button>
+            <p className="text-xs text-muted"><RequiredMark /> Required fields</p>
+
+            <Button type="submit" disabled={!isFormValid || loading} className="h-12 w-full text-base">{loading ? "Creating account..." : "Create account"} {!loading && <ArrowRight size={18}/>}</Button>
 
             <p className="text-center text-sm text-muted">Already have an account? <Link to="/login" className="font-semibold text-primary hover:underline">Sign in</Link></p>
           </form>
@@ -327,16 +363,219 @@ export function RegisterPage() {
 }
 
 export function ForgotPasswordPage() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  async function submit(e: FormEvent<HTMLFormElement>) { e.preventDefault(); const email = new FormData(e.currentTarget).get("email"); await api.post("/auth/forgot-password", { email }); setSent(true); }
-  return <Shell title="Reset your password"><form onSubmit={submit} className="mt-6 space-y-4"><Input name="email" placeholder="Email"/><Button className="w-full">Send reset link</Button>{sent && <p className="text-sm text-green-700">Reset instructions sent.</p>}<Link className="block text-center text-sm text-muted" to="/login">Back to login</Link></form></Shell>;
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  const isValid = email.trim() !== "" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!isValid) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api.post("/auth/forgot-password", { email: email.trim() });
+      setSent(true);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || "Something went wrong. Please try again.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return <div className="min-h-screen bg-white">
+    <BackToLanding />
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .4 }} className="w-full max-w-md">
+        {sent ? (
+          <motion.div initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} className="rounded-[24px] border border-line bg-white p-8 shadow-[0_24px_88px_rgba(17,24,39,.10)] text-center md:p-10">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20"><CheckCircle2 size={26}/></div>
+            <h2 className="text-2xl font-semibold">Check your inbox</h2>
+            <p className="mt-2 text-muted">We sent password reset instructions to <strong className="text-ink">{email}</strong>.</p>
+            <p className="mt-1 text-sm text-muted">If you don't see it, check your spam folder.</p>
+            <Button onClick={() => navigate("/login")} className="mt-6 h-12 w-full text-base">Back to Sign in</Button>
+          </motion.div>
+        ) : (
+          <div className="rounded-[24px] border border-line bg-white p-8 shadow-[0_24px_88px_rgba(17,24,39,.10)] md:p-10">
+            <div className="mb-8 text-center">
+              <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20"><Lock size={26}/></div>
+              <h2 className="text-2xl font-semibold">Forgot password?</h2>
+              <p className="mt-2 text-muted">Enter your email and we'll send you a reset link.</p>
+            </div>
+
+            <form onSubmit={submit} className="space-y-5">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-ink">Email Address<RequiredMark /></label>
+                <input value={email} onChange={(e) => { setEmail(e.target.value); setError(""); }} type="email" placeholder="you@university.edu" className={`h-12 w-full rounded-xl border bg-white px-4 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-4 focus:ring-primary/10 ${error ? "border-red-400 focus:border-red-400" : "border-line"}`} />
+                <FieldErr msg={error} />
+              </div>
+
+              <Button type="submit" disabled={!isValid || loading} className="h-12 w-full text-base">
+                {loading ? "Sending..." : "Send Reset Link"} {!loading && <ArrowRight size={18}/>}
+              </Button>
+            </form>
+
+            <div className="mt-6 space-y-3 text-center">
+              <p className="text-sm text-muted">Remember your password? <Link to="/login" className="font-semibold text-primary hover:underline">Sign in</Link></p>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  </div>;
 }
 
 export function ResetPasswordPage() {
-  const { token = "demo-reset-token" } = useParams();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token") || "";
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  async function submit(e: FormEvent<HTMLFormElement>) { e.preventDefault(); const password = new FormData(e.currentTarget).get("password"); await api.post("/auth/reset-password", { token, password }); setDone(true); }
-  return <Shell title="Choose a new password"><form onSubmit={submit} className="mt-6 space-y-4"><Input name="password" type="password" placeholder="New password"/><Button className="w-full">Reset password</Button>{done && <p className="text-sm text-green-700">Password reset accepted.</p>}</form></Shell>;
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  function getPasswordStrength(pw: string): number {
+    if (!pw) return 0;
+    let score = 0;
+    if (pw.length >= 8) score += 25;
+    if (/[a-z]/.test(pw)) score += 15;
+    if (/[A-Z]/.test(pw)) score += 15;
+    if (/\d/.test(pw)) score += 20;
+    if (/[^a-zA-Z0-9]/.test(pw)) score += 25;
+    return Math.min(100, score);
+  }
+
+  const strength = getPasswordStrength(password);
+
+  function getStrengthBar(): { pct: number; color: string; label: string } {
+    if (!password) return { pct: 0, color: "", label: "" };
+    if (strength < 25) return { pct: 25, color: "bg-red-400", label: "Too weak" };
+    if (strength < 50) return { pct: 50, color: "bg-orange-400", label: "Weak" };
+    if (strength < 75) return { pct: 75, color: "bg-yellow-400", label: "Good" };
+    return { pct: 100, color: "bg-green-500", label: "Strong" };
+  }
+
+  const bar = getStrengthBar();
+
+  const requirements = [
+    { label: "8+ characters", met: password.length >= 8 },
+    { label: "Uppercase", met: /[A-Z]/.test(password) },
+    { label: "Lowercase", met: /[a-z]/.test(password) },
+    { label: "Number", met: /\d/.test(password) },
+    { label: "Special character", met: /[^a-zA-Z0-9]/.test(password) },
+  ];
+
+  const passwordsMatch = confirmPassword !== "" && password === confirmPassword;
+  const isFormValid = password.length >= 8 && confirmPassword !== "" && password === confirmPassword && token !== "";
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!isFormValid) return;
+    setLoading(true);
+    setError("");
+    try {
+      await api.post("/auth/reset-password", { token, password });
+      setDone(true);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to reset password. The link may be expired.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (done) {
+    return <div className="min-h-screen bg-white">
+      <BackToLanding />
+      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+        <motion.div initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md">
+          <div className="rounded-[24px] border border-line bg-white p-8 shadow-[0_24px_88px_rgba(17,24,39,.10)] text-center md:p-10">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-green-100 text-green-600"><CheckCircle2 size={26}/></div>
+            <h2 className="text-2xl font-semibold">Password Updated Successfully</h2>
+            <p className="mt-2 text-muted">Your password has been reset. You can now sign in with your new password.</p>
+            <Button onClick={() => navigate("/login")} className="mt-6 h-12 w-full text-base">Go to Login <ArrowRight size={18}/></Button>
+          </div>
+        </motion.div>
+      </div>
+    </div>;
+  }
+
+  if (!token) {
+    return <div className="min-h-screen bg-white">
+      <BackToLanding />
+      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md text-center">
+          <div className="rounded-[24px] border border-line bg-white p-8 shadow-[0_24px_88px_rgba(17,24,39,.10)] md:p-10">
+            <h2 className="text-2xl font-semibold">Invalid reset link</h2>
+            <p className="mt-2 text-muted">This password reset link is invalid or missing a token.</p>
+            <Button onClick={() => navigate("/forgot-password")} className="mt-6 h-12 w-full text-base">Request new reset link</Button>
+          </div>
+        </div>
+      </div>
+    </div>;
+  }
+
+  return <div className="min-h-screen bg-white">
+    <BackToLanding />
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .4 }} className="w-full max-w-md">
+        <div className="rounded-[24px] border border-line bg-white p-8 shadow-[0_24px_88px_rgba(17,24,39,.10)] md:p-10">
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20"><Lock size={26}/></div>
+            <h2 className="text-2xl font-semibold">Create New Password</h2>
+            <p className="mt-2 text-muted">Choose a strong password for your account.</p>
+          </div>
+
+          <form onSubmit={submit} className="space-y-5">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink">New Password<RequiredMark /></label>
+              <div className={`flex items-center rounded-xl border bg-white pr-4 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 ${error ? "border-red-400" : "border-line"}`}>
+                <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? "text" : "password"} placeholder="Create a new password" className="h-12 w-full bg-transparent px-4 text-sm outline-none placeholder:text-muted/60" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="shrink-0 text-muted hover:text-ink" tabIndex={-1}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+              </div>
+              {password && <div className="mt-2">
+                <div className="flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200"><div className={`h-full rounded-full transition-all ${bar.color}`} style={{ width: `${bar.pct}%` }}/></div><span className="text-xs font-medium text-muted">{bar.label}</span></div>
+              </div>}
+              <div className="mt-2 space-y-1">
+                {requirements.map((r) => (
+                  <div key={r.label} className={`flex items-center gap-1.5 text-xs transition-colors ${r.met ? "text-green-600" : "text-muted"}`}>
+                    {r.met ? <Check size={12} className="text-green-500" strokeWidth={3} /> : <div className="h-3 w-3 rounded-full border border-muted/40" />}
+                    {r.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Confirm Password<RequiredMark /></label>
+              <div className={`flex items-center rounded-xl border bg-white pr-4 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 ${error ? "border-red-400" : "border-line"}`}>
+                <input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" className="h-12 w-full bg-transparent px-4 text-sm outline-none placeholder:text-muted/60" />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="shrink-0 text-muted hover:text-ink" tabIndex={-1}>{showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+              </div>
+              {confirmPassword && (
+                <div className={`mt-1 flex items-center gap-1 text-xs ${passwordsMatch ? "text-green-600" : "text-red-500"}`}>
+                  {passwordsMatch ? <Check size={12} strokeWidth={3} /> : <X size={12} />}
+                  {passwordsMatch ? "Passwords match" : "Passwords do not match"}
+                </div>
+              )}
+            </div>
+
+            {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3"><p className="text-sm text-red-600">{error}</p></div>}
+
+            <Button type="submit" disabled={!isFormValid || loading} className="h-12 w-full text-base">
+              {loading ? "Updating password..." : "Update Password"} {!loading && <ArrowRight size={18}/>}
+            </Button>
+          </form>
+        </div>
+      </motion.div>
+    </div>
+  </div>;
 }
 
 export function OtpPage() {

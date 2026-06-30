@@ -45,7 +45,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenResponse)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    print(f"[REGISTER] email={payload.email} role={payload.role.value}", flush=True)
     user = create_user(db, payload)
+    print(f"[REGISTER] Created user id={user.id} email={user.email} role={user.role.value}", flush=True)
     send_welcome_email(user.email, user.full_name, user.role.value)
     return issue_tokens(user)
 

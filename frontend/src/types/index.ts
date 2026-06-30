@@ -1,11 +1,77 @@
 export type Role = "STUDENT" | "FACULTY" | "PARENT" | "PLACEMENT_OFFICER" | "ADMIN";
-export type User = { id: number; full_name: string; email: string; role: Role; is_active: boolean; is_verified: boolean; created_at: string };
+export type User = { id: number; full_name: string; email: string; role: Role; is_active: boolean; is_verified: boolean; profile_picture?: string | null; created_at: string };
+
+export type SemesterGpa = {
+  semester: string;
+  sgpa: number;
+  cgpa: number;
+  credits: number;
+};
+
+export type SubjectInfo = {
+  code: string;
+  name: string;
+  faculty: string;
+  credits: number;
+  type: string;
+};
+
+export type SkillsData = {
+  programming_languages: string[];
+  frameworks: string[];
+  ai_skills: string[];
+  soft_skills: string[];
+};
 
 export type StudentProfile = {
-  department: string;
-  year: number;
+  id: number;
+  user_id: number;
   roll_number: string;
-  current_semester: number;
+  registration_number: string | null;
+  department: string;
+  course: string | null;
+  branch: string | null;
+  section: string | null;
+  year: number;
+  semester: number | null;
+  academic_year: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  phone_number: string | null;
+  address: string | null;
+  profile_photo_url: string | null;
+  cgpa: number;
+  current_semester_gpa: number;
+  attendance_percentage: number;
+  credits_earned: number;
+  total_credits: number;
+  faculty_advisor: string | null;
+  placement_readiness_score: number;
+  risk_score: number;
+  skill_score: number;
+  resume_score: number;
+  coding_score: number;
+  mock_interview_score: number;
+  communication_score: number;
+  applications: number;
+  eligible_companies: number;
+  offers: number;
+  preferred_role: string | null;
+  expected_package: string | null;
+  semester_gpas: SemesterGpa[];
+  subjects_data: SubjectInfo[];
+  skills_data: SkillsData | Record<string, string[]>;
+  certifications: string[];
+  eligible_companies_list: any[];
+  applied_companies_list: any[];
+  github_url: string | null;
+  linkedin_url: string | null;
+  leetcode_url: string | null;
+  portfolio_url: string | null;
+  resume_url: string | null;
+  parent_name: string | null;
+  parent_phone: string | null;
+  parent_email: string | null;
 };
 
 export type OverallMetrics = {
@@ -50,50 +116,9 @@ export type PlacementReadiness = {
   projectStrength: number;
 };
 
-export type SemesterCgpa = {
-  semester: number;
-  cgpa: number;
-};
-
-export type SubjectMarks = {
-  subject: string;
-  internal: number;
-  external: number;
-  total: number;
-  grade: string;
-};
-
-export type AttendanceRecord = {
-  month: string;
-  percentage: number;
-  attended: number;
-  total: number;
-};
-
-export type PlacementKpi = {
-  label: string;
-  value: string | number;
-  trend: string;
-  icon: string;
-};
-
-export type CodingProfile = {
-  platform: string;
-  rating: number;
-  problemsSolved: number;
-  contestRank: string;
-};
-
-export type CompanyEligibility = {
-  name: string;
-  eligible: boolean;
-  criteria: string;
-  deadline: string;
-};
-
 export type Dashboard = {
   role: Role;
-  user?: { full_name: string };
+  user?: { full_name: string; email?: string };
   profile?: StudentProfile;
   overall?: OverallMetrics;
   kpis: KpiItem[];
@@ -105,4 +130,220 @@ export type Dashboard = {
   tables: Record<string, any>;
   notifications: any[];
   predictions: any[];
+};
+
+// =========================================
+// FACULTY TYPES
+// =========================================
+
+export type FacultyProfile = {
+  id: number;
+  user_id: number;
+  employee_id: string | null;
+  department: string;
+  designation: string;
+  phone: string | null;
+  subject_handling: string[];
+  assigned_years: number[];
+  assigned_sections: string[];
+  class_advisor: boolean;
+  office_room: string | null;
+  experience: number;
+  profile_picture: string | null;
+  full_name: string;
+  email: string;
+};
+
+export type FacultyRecentStudent = {
+  id: number;
+  name: string;
+  roll_number: string;
+  year: number;
+  section: string | null;
+  cgpa: number;
+  attendance: number;
+  risk: string;
+  readiness: number;
+};
+
+export type FacultyDashboardData = {
+  role: string;
+  profile: FacultyProfile;
+  kpis: KpiItem[];
+  charts: Record<string, any>;
+  recent_students: FacultyRecentStudent[];
+  notifications: any[];
+};
+
+export type FacultyStudentListItem = {
+  id: number;
+  user_id: number;
+  name: string;
+  roll_number: string;
+  registration_number: string | null;
+  department: string;
+  year: number;
+  section: string | null;
+  semester: number | null;
+  cgpa: number;
+  attendance_percentage: number;
+  risk_score: number;
+  ai_score: number;
+  placement_readiness_score: number;
+  profile_picture: string | null;
+};
+
+export type FacultyStudentDetail = FacultyStudentListItem & {
+  email: string;
+  course: string | null;
+  branch: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  phone_number: string | null;
+  address: string | null;
+  parent_name: string | null;
+  parent_phone: string | null;
+  current_semester_gpa: number;
+  credits_earned: number;
+  total_credits: number;
+  faculty_advisor: string | null;
+  skill_score: number;
+  resume_score: number;
+  coding_score: number;
+  mock_interview_score: number;
+  applications: number;
+  eligible_companies: number;
+  offers: number;
+  semester_gpas: { semester: string; sgpa: number; cgpa: number; credits: number }[];
+  subjects_data: any[];
+  skills_data: Record<string, string[]>;
+  certifications: string[];
+  backlogs: string[];
+  monthly_attendance: { month: string; percentage: number }[];
+  assignment_completion: { total: number; submitted: number; pending: number };
+  strengths: string[];
+  weak_areas: string[];
+  recommended_action: string;
+  intervention_notes: string[];
+  projects: ProjectData[];
+  hackathons: HackathonData[];
+  coding_profile: CodingProfileData;
+  behavior_notes: string[];
+  parent_details: ParentDetails;
+  faculty_notes: FacultyNote[];
+  timeline: TimelineEvent[];
+  ai_summary: AISummaryData;
+};
+
+export type ProjectData = {
+  id: number;
+  title: string;
+  description: string;
+  tech_stack: string[];
+  status: "Ongoing" | "Completed" | "Submitted";
+  grade?: string;
+  mentor: string;
+};
+
+export type HackathonData = {
+  id: number;
+  name: string;
+  rank: string;
+  date: string;
+  prize: string;
+};
+
+export type CodingProfileData = {
+  platform: string;
+  username: string;
+  rating: number;
+  problems_solved: number;
+  rank: string;
+};
+
+export type ParentDetails = {
+  father_name: string;
+  father_occupation: string;
+  mother_name: string;
+  mother_occupation: string;
+  address: string;
+  phone: string;
+  email: string;
+  income: string;
+};
+
+export type FacultyNote = {
+  id: number;
+  date: string;
+  note: string;
+  category: "Academic" | "Behavior" | "Placement" | "General";
+};
+
+export type TimelineEvent = {
+  date: string;
+  event: string;
+  type: "Academic" | "Achievement" | "Activity" | "Alert";
+};
+
+export type AISummaryData = {
+  risk_score: number;
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
+  career_prediction: string;
+  learning_path: string[];
+  placement_probability: number;
+};
+
+export type YearWiseSummary = {
+  year: number;
+  label: string;
+  total_students: number;
+  average_attendance: number;
+  average_cgpa: number;
+  at_risk_count: number;
+};
+
+export type AtRiskStudent = {
+  id: number;
+  name: string;
+  roll_number: string;
+  year: number;
+  section: string | null;
+  cgpa: number;
+  attendance_percentage: number;
+  risk_score: number;
+  weak_areas: string[];
+  recommended_action: string;
+};
+
+export type LiveCardData = {
+  label: string;
+  value: string | number;
+  trend: string;
+  icon: string;
+  color: string;
+};
+
+export type PriorityItem = {
+  id: number;
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+  type: "intervention" | "evaluation" | "deadline" | "alert";
+};
+
+export type CampusActivity = {
+  id: number;
+  type: "Live Class" | "Faculty" | "Student" | "Placement" | "Exam" | "Event" | "Notification";
+  title: string;
+  subtitle: string;
+  time: string;
+  status: "active" | "upcoming" | "completed";
+};
+
+export type WeekDay = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat";
+export type HeatmapData = {
+  subject: string;
+  data: { day: WeekDay; value: number }[];
 };

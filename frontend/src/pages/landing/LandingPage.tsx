@@ -19,6 +19,7 @@ import {
 import { Link } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { InteractiveParticlesBackground } from "../../components/InteractiveParticlesBackground";
 
 const missionCards = [
   { title: "Student Success", desc: "Personalized AI guidance helps every student achieve their full academic and career potential.", icon: GraduationCap },
@@ -74,10 +75,12 @@ export function LandingPage() {
       </div>
     </header>
 
-    <section className="relative overflow-hidden border-b border-line">
-      <div className="absolute inset-0 grid-bg opacity-40" />
-      <div className="absolute left-1/2 top-28 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-      <div className="relative mx-auto max-w-5xl px-4 py-20 text-center lg:py-28">
+    <section className="relative overflow-hidden border-b border-line" style={{ isolation: "isolate" }}>
+      <InteractiveParticlesBackground />
+      <div className="absolute inset-0 z-[1] grid-bg opacity-40 pointer-events-none" />
+      <div className="absolute left-1/2 top-28 z-[1] h-80 w-80 -translate-x-1/2 rounded-full bg-primary/[0.08] blur-3xl pointer-events-none" />
+      <div className="absolute left-1/2 top-32 z-[1] h-72 w-72 -translate-x-1/2 rounded-full bg-secondary/[0.06] blur-3xl pointer-events-none" />
+      <div className="relative z-[2] mx-auto max-w-5xl px-4 py-20 text-center lg:py-28">
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }}>
           <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white px-3 py-1 text-sm font-semibold text-primary shadow-sm">
             <Sparkles size={16}/> AI-powered operating system for universities

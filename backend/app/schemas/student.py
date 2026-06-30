@@ -1,20 +1,118 @@
 from datetime import date
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class StudentProfileRead(BaseModel):
     id: int
+    user_id: int
     roll_number: str
+    registration_number: str | None = None
     department: str
+    course: str | None = "B.Tech"
+    branch: str | None = None
+    section: str | None = None
     year: int
-    cgpa: float
-    attendance_percentage: float
-    placement_readiness_score: float
-    risk_score: float
-    skill_score: float
+    semester: int | None = None
+    academic_year: str | None = None
+    date_of_birth: str | None = None
+    gender: str | None = None
+    phone_number: str | None = None
+    address: str | None = None
+    profile_photo_url: str | None = None
+    cgpa: float = 0.0
+    current_semester_gpa: float = 0.0
+    attendance_percentage: float = 0.0
+    credits_earned: int = 0
+    total_credits: int = 180
+    faculty_advisor: str | None = None
+    placement_readiness_score: float = 0.0
+    risk_score: float = 0.0
+    skill_score: float = 0.0
+    resume_score: float = 0.0
+    coding_score: float = 0.0
+    mock_interview_score: float = 0.0
+    communication_score: float = 0.0
+    applications: int = 0
+    eligible_companies: int = 0
+    offers: int = 0
+    preferred_role: str | None = None
+    expected_package: str | None = None
+    semester_gpas: list[dict[str, Any]] = []
+    subjects_data: list[dict[str, Any]] = []
+    skills_data: dict[str, list[str]] = {}
+    certifications: list[str] = []
+    eligible_companies_list: list[dict[str, Any]] = []
+    applied_companies_list: list[dict[str, Any]] = []
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    leetcode_url: str | None = None
+    portfolio_url: str | None = None
+    resume_url: str | None = None
+    parent_name: str | None = None
+    parent_phone: str | None = None
+    parent_email: str | None = None
+
+    @field_validator("semester_gpas", "subjects_data", "certifications", "eligible_companies_list", "applied_companies_list", mode="before")
+    @classmethod
+    def ensure_list(cls, v: Any) -> list:
+        if isinstance(v, dict):
+            return list(v.values()) if v else []
+        if v is None:
+            return []
+        return v if isinstance(v, list) else []
 
     model_config = {"from_attributes": True}
+
+
+class StudentProfileUpdate(BaseModel):
+    roll_number: str | None = None
+    registration_number: str | None = None
+    department: str | None = None
+    course: str | None = None
+    branch: str | None = None
+    section: str | None = None
+    year: int | None = None
+    semester: int | None = None
+    academic_year: str | None = None
+    date_of_birth: str | None = None
+    gender: str | None = None
+    phone_number: str | None = None
+    address: str | None = None
+    profile_photo_url: str | None = None
+    cgpa: float | None = None
+    current_semester_gpa: float | None = None
+    attendance_percentage: float | None = None
+    credits_earned: int | None = None
+    total_credits: int | None = None
+    faculty_advisor: str | None = None
+    placement_readiness_score: float | None = None
+    risk_score: float | None = None
+    skill_score: float | None = None
+    resume_score: float | None = None
+    coding_score: float | None = None
+    mock_interview_score: float | None = None
+    communication_score: float | None = None
+    applications: int | None = None
+    eligible_companies: int | None = None
+    offers: int | None = None
+    preferred_role: str | None = None
+    expected_package: str | None = None
+    semester_gpas: list[dict[str, Any]] | None = None
+    subjects_data: list[dict[str, Any]] | None = None
+    skills_data: dict[str, list[str]] | None = None
+    certifications: list[str] | None = None
+    eligible_companies_list: list[dict[str, Any]] | None = None
+    applied_companies_list: list[dict[str, Any]] | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    leetcode_url: str | None = None
+    portfolio_url: str | None = None
+    resume_url: str | None = None
+    parent_name: str | None = None
+    parent_phone: str | None = None
+    parent_email: str | None = None
 
 
 class RoadmapRead(BaseModel):

@@ -1,14 +1,16 @@
 import {
-  Award, Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, CheckCircle2,
-  ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, Code2,
-  Command, FileBarChart, FileText, GraduationCap, LayoutDashboard, LogOut,
-  Menu, MessageSquare, Search, Send, Settings, Sparkles, TrendingUp,
+  AlertTriangle, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Bot,
+  BrainCircuit, BriefcaseBusiness, Building2, CalendarDays, CheckCircle2, ChevronDown,
+  ChevronLeft, ChevronRight, ClipboardList, Clock, Code2, Command, CreditCard,
+  FileBarChart, FileText, GraduationCap, LayoutDashboard, LogOut, Mail, Menu,
+  MessageSquare, Search, Send, Settings, Sparkles, Star, TrendingUp, UserCheck,
   UserRound, Users,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
+import { useOptionalStudentProfile } from "../context/StudentProfileContext";
 import { cn } from "../utils/cn";
 
 type NavItem = { label: string; path: string; icon: React.ElementType };
@@ -49,7 +51,7 @@ const studentNav: NavSection[] = [
       { label: "AI Assistant", path: "career-assistant", icon: Sparkles },
       { label: "Reports", path: "reports", icon: FileBarChart },
       { label: "Notifications", path: "notifications", icon: Bell },
-      { label: "Profile", path: "profile", icon: UserRound },
+      { label: "Profile", path: "student/profile", icon: UserRound },
       { label: "Settings", path: "settings", icon: Settings },
     ],
   },
@@ -69,12 +71,78 @@ const otherNav: NavItem[] = [
   { label: "Settings", path: "settings", icon: Settings },
 ];
 
-function CalendarDays({ size }: { size?: number }) {
-  return <svg xmlns="http://www.w3.org/2000/svg" width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
-}
+const facultyNav: NavSection[] = [
+  {
+    title: "AI COMMAND CENTER",
+    items: [
+      { label: "Dashboard", path: "faculty", icon: LayoutDashboard },
+      { label: "My Students", path: "faculty/students", icon: Users },
+      { label: "Year-wise Analysis", path: "faculty/year-wise", icon: GraduationCap },
+    ],
+  },
+  {
+    title: "ACADEMIC TOOLS",
+    items: [
+      { label: "Attendance", path: "faculty/attendance", icon: Clock },
+      { label: "Marks & Internals", path: "faculty/marks", icon: FileText },
+      { label: "Assignments", path: "faculty/assignments", icon: ClipboardList },
+    ],
+  },
+  {
+    title: "INTELLIGENCE",
+    items: [
+      { label: "At-Risk Students", path: "faculty/at-risk", icon: AlertTriangle },
+      { label: "AI Insights", path: "faculty/ai-insights", icon: BrainCircuit },
+      { label: "Reports", path: "faculty/reports", icon: FileBarChart },
+    ],
+  },
+  {
+    title: "ACCOUNT",
+    items: [
+      { label: "Notifications", path: "faculty/notifications", icon: Bell },
+      { label: "Profile", path: "faculty/profile", icon: UserRound },
+      { label: "Settings", path: "faculty/settings", icon: Settings },
+    ],
+  },
+];
+
+const placementNav: NavSection[] = [
+  {
+    title: "PLACEMENT WORKSPACE",
+    items: [
+      { label: "Dashboard", path: "placement", icon: LayoutDashboard },
+      { label: "Student Talent Pool", path: "placement/students", icon: Users },
+      { label: "Department-wise", path: "placement/departments", icon: Building2 },
+      { label: "Skill Analytics", path: "placement/skills", icon: BrainCircuit },
+      { label: "Company Eligibility", path: "placement/company-eligibility", icon: CheckCircle2 },
+      { label: "Placement Drives", path: "placement/drives", icon: CalendarDays },
+    ],
+  },
+  {
+    title: "INSIGHTS & ACTIONS",
+    items: [
+      { label: "AI Placement Insights", path: "placement/insights", icon: TrendingUp },
+      { label: "Notifications", path: "placement/notifications", icon: Bell },
+      { label: "Profile", path: "placement/profile", icon: UserRound },
+      { label: "Settings", path: "placement/settings", icon: Settings },
+    ],
+  },
+];
+
+const parentNav: NavItem[] = [
+  { label: "Dashboard", path: "parent", icon: LayoutDashboard },
+  { label: "My Child", path: "_parent_child", icon: UserRound },
+  { label: "Academics", path: "_parent_academics", icon: BookOpen },
+  { label: "Attendance", path: "_parent_attendance", icon: CalendarDays },
+  { label: "Messages", path: "_parent_messages", icon: MessageSquare },
+  { label: "Fees", path: "_parent_fees", icon: CreditCard },
+  { label: "Reports", path: "reports", icon: FileBarChart },
+  { label: "Settings", path: "settings", icon: Settings },
+];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const { profile: studentProfile } = useOptionalStudentProfile();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -83,14 +151,22 @@ export function AppLayout() {
     ACADEMICS: true,
     PLACEMENTS: true,
     TOOLS: true,
+    "FACULTY WORKSPACE": true,
+    "PLACEMENT WORKSPACE": true,
+    "PARENT WORKSPACE": true,
   });
 
   const isStudent = user?.role === "STUDENT";
+  const isFaculty = user?.role === "FACULTY";
+  const isPlacementOfficer = user?.role === "PLACEMENT_OFFICER";
   const roleHome = !isStudent
-    ? user?.role === "FACULTY" ? "faculty" : user?.role === "PARENT" ? "parent" : user?.role === "PLACEMENT_OFFICER" ? "placement" : user?.role === "ADMIN" ? "admin" : "student"
+    ? isFaculty ? "faculty" : isPlacementOfficer ? "placement" : user?.role === "PARENT" ? "parent" : user?.role === "ADMIN" ? "admin" : "student"
     : "student";
+  const isParent = user?.role === "PARENT";
   const pathParts = location.pathname.split("/").filter(Boolean);
-  const page = pathParts[pathParts.length - 1]?.replace(/-/g, " ") || "dashboard";
+  const page = ((isFaculty || isPlacementOfficer) && pathParts.length >= 3)
+    ? pathParts.slice(2).join(" ").replace(/-/g, " ")
+    : pathParts[pathParts.length - 1]?.replace(/-/g, " ") || "dashboard";
 
   const toggleSection = (title: string) => {
     setExpandedSections((prev) => ({ ...prev, [title]: !prev[title] }));
@@ -100,8 +176,16 @@ export function AppLayout() {
     if (path === "student") return location.pathname === "/app/student";
     if (path === "student/placement") return location.pathname === "/app/student/placement";
     if (path.startsWith("student/")) return location.pathname === `/app/${path}`;
+    if (path === "faculty") return location.pathname === "/app/faculty";
+    if (path.startsWith("faculty/")) return location.pathname === `/app/${path}` || location.pathname.startsWith(`/app/${path}/`);
+    if (path === "placement") return location.pathname === "/app/placement";
+    if (path.startsWith("placement/")) return location.pathname === `/app/${path}` || location.pathname.startsWith(`/app/${path}/`);
     return location.pathname === `/app/${path}` || location.pathname.startsWith(`/app/${path}/`);
   };
+
+  const isStudentPath = (path: string) => path.startsWith("student/") || path === "student";
+  const isFacultyPath = (path: string) => path.startsWith("faculty/") || path === "faculty";
+  const isPlacementPath = (path: string) => path.startsWith("placement/") || path === "placement";
 
   const initials = user?.full_name?.slice(0, 2).toUpperCase() || "AI";
 
@@ -187,6 +271,146 @@ export function AppLayout() {
               )}
             </div>
           ))
+        ) : isFaculty ? (
+          /* Faculty premium sidebar */
+          facultyNav.map((section) => (
+            <div key={section.title} className="mb-4">
+              {!collapsed && (
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF] transition hover:text-[#6B7280]"
+                >
+                  {section.title}
+                  <ChevronDown
+                    size={14}
+                    className={cn("transition", expandedSections[section.title] && "rotate-180")}
+                  />
+                </button>
+              )}
+              {expandedSections[section.title] && (
+                <div className={cn("space-y-0.5", collapsed && "mt-3 space-y-2")}>
+                  {section.items.map((item) => {
+                    const active = isActive(item.path);
+                    return (
+                      <NavLink
+                        key={item.path}
+                        to={`/app/${item.path}`}
+                        className={cn(
+                          "group flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition-all duration-150",
+                          collapsed && "justify-center px-0 py-3",
+                          active
+                            ? "bg-[#6C4CF1] text-white shadow-md shadow-[#6C4CF1]/20"
+                            : "text-[#6B7280] hover:bg-[#F5F7FA] hover:text-[#111827]"
+                        )}
+                      >
+                        <item.icon size={collapsed ? 20 : 18} className={cn("shrink-0", active ? "text-white" : "text-[#9CA3AF] group-hover:text-[#6B7280]")} />
+                        {!collapsed && <span>{item.label}</span>}
+                        {!collapsed && active && (
+                          <span className="ml-auto h-2 w-2 rounded-full bg-white/60" />
+                        )}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))
+        ) : isPlacementOfficer ? (
+          /* Placement officer premium sidebar */
+          placementNav.map((section) => (
+            <div key={section.title} className="mb-4">
+              {!collapsed && (
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF] transition hover:text-[#6B7280]"
+                >
+                  {section.title}
+                  <ChevronDown
+                    size={14}
+                    className={cn("transition", expandedSections[section.title] && "rotate-180")}
+                  />
+                </button>
+              )}
+              {expandedSections[section.title] && (
+                <div className={cn("space-y-0.5", collapsed && "mt-3 space-y-2")}>
+                  {section.items.map((item) => {
+                    const active = isActive(item.path);
+                    return (
+                      <NavLink
+                        key={item.path}
+                        to={`/app/${item.path}`}
+                        className={cn(
+                          "group flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition-all duration-150",
+                          collapsed && "justify-center px-0 py-3",
+                          active
+                            ? "bg-[#6C4CF1] text-white shadow-md shadow-[#6C4CF1]/20"
+                            : "text-[#6B7280] hover:bg-[#F5F7FA] hover:text-[#111827]"
+                        )}
+                      >
+                        <item.icon size={collapsed ? 20 : 18} className={cn("shrink-0", active ? "text-white" : "text-[#9CA3AF] group-hover:text-[#6B7280]")} />
+                        {!collapsed && <span>{item.label}</span>}
+                        {!collapsed && active && (
+                          <span className="ml-auto h-2 w-2 rounded-full bg-white/60" />
+                        )}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))
+        ) : user?.role === "PARENT" ? (
+          /* Parent sidebar — only Dashboard shows active */
+          <div className="space-y-0.5">
+            {parentNav.map((item) => {
+              if (item.path === "parent") {
+                const active = location.pathname === "/app/parent";
+                return (
+                  <NavLink key={item.path} to="/app/parent"
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition-all duration-150",
+                      collapsed && "justify-center px-0 py-3",
+                      active
+                        ? "bg-gradient-to-r from-[#6C4CF1] to-[#3B82F6] text-white shadow-md shadow-[#6C4CF1]/20"
+                        : "text-[#6B7280] hover:bg-[#6C4CF1]/5 hover:text-[#111827]"
+                    )}>
+                    <item.icon size={collapsed ? 20 : 18} className={cn("shrink-0", active ? "text-white" : "text-[#9CA3AF]")} />
+                    {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && active && <span className="ml-auto h-2 w-2 rounded-full bg-white/60" />}
+                  </NavLink>
+                );
+              }
+              const isExternal = item.path === "reports" || item.path === "settings";
+              if (isExternal) {
+                const active = location.pathname === `/app/${item.path}`;
+                return (
+                  <NavLink key={item.path} to={`/app/${item.path}`}
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition-all duration-150",
+                      collapsed && "justify-center px-0 py-3",
+                      active
+                        ? "bg-gradient-to-r from-[#6C4CF1] to-[#3B82F6] text-white shadow-md shadow-[#6C4CF1]/20"
+                        : "text-[#6B7280] hover:bg-[#6C4CF1]/5 hover:text-[#111827]"
+                    )}>
+                    <item.icon size={collapsed ? 20 : 18} className={cn("shrink-0", active ? "text-white" : "text-[#9CA3AF]")} />
+                    {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && active && <span className="ml-auto h-2 w-2 rounded-full bg-white/60" />}
+                  </NavLink>
+                );
+              }
+              return (
+                <button key={item.path} onClick={() => navigate("/app/parent")}
+                  className={cn(
+                    "group flex w-full items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition-all duration-150",
+                    collapsed && "justify-center px-0 py-3",
+                    "text-[#6B7280] hover:bg-[#6C4CF1]/5 hover:text-[#111827]"
+                  )}>
+                  <item.icon size={collapsed ? 20 : 18} className="shrink-0 text-[#9CA3AF]" />
+                  {!collapsed && <span className="text-left">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         ) : (
           /* Non-student simple sidebar */
           <div className="space-y-0.5">
@@ -218,12 +442,19 @@ export function AppLayout() {
       {!collapsed && isStudent && (
         <div className="absolute bottom-0 left-0 right-0 border-t border-[#E8ECF1] bg-white p-4">
           <div className="flex items-center gap-3 rounded-xl bg-[#F5F7FA] p-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] text-xs font-bold text-white">
-              {initials}
-            </div>
+            {studentProfile?.profile_photo_url ? (
+              <img src={studentProfile.profile_photo_url.startsWith("http") ? studentProfile.profile_photo_url : `http://localhost:8000${studentProfile.profile_photo_url}`}
+                alt="Profile" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+            ) : (
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] text-xs font-bold text-white">
+                {initials}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-[#111827]">{user?.full_name || "Student"}</p>
-              <p className="truncate text-xs text-[#6B7280]">AIML • 4th Year • Sem 8</p>
+              <p className="truncate text-xs text-[#6B7280]">
+                {studentProfile?.department || "Department"} • {studentProfile?.year ? `${studentProfile.year}th Year` : ""} • Sem {studentProfile?.semester || ""}
+              </p>
             </div>
           </div>
         </div>
@@ -269,6 +500,90 @@ export function AppLayout() {
               })}
             </div>
           ))
+        ) : isFaculty ? (
+          facultyNav.map((section) => (
+            <div key={section.title} className="mb-3">
+              <p className="mb-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">{section.title}</p>
+              {section.items.map((item) => {
+                const active = isActive(item.path);
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={`/app/${item.path}`}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition",
+                      active ? "bg-[#6C4CF1] text-white" : "text-[#6B7280] hover:bg-[#F5F7FA]"
+                    )}
+                  >
+                    <item.icon size={18} />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))
+        ) : isPlacementOfficer ? (
+          placementNav.map((section) => (
+            <div key={section.title} className="mb-3">
+              <p className="mb-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">{section.title}</p>
+              {section.items.map((item) => {
+                const active = isActive(item.path);
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={`/app/${item.path}`}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition",
+                      active ? "bg-[#6C4CF1] text-white" : "text-[#6B7280] hover:bg-[#F5F7FA]"
+                    )}
+                  >
+                    <item.icon size={18} />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))
+        ) : user?.role === "PARENT" ? (
+          <div className="space-y-0.5">
+            <p className="mb-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]">PARENT WORKSPACE</p>
+            {parentNav.map((item) => {
+              if (item.path === "parent") {
+                return (
+                  <NavLink key={item.path} to="/app/parent" onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition",
+                      location.pathname === "/app/parent" ? "bg-[#6C4CF1] text-white" : "text-[#6B7280] hover:bg-[#F5F7FA]"
+                    )}>
+                    <item.icon size={18} />
+                    {item.label}
+                  </NavLink>
+                );
+              }
+              const isExternal = item.path === "reports" || item.path === "settings";
+              if (isExternal) {
+                return (
+                  <NavLink key={item.path} to={`/app/${item.path}`} onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium transition",
+                      "text-[#6B7280] hover:bg-[#F5F7FA]"
+                    )}>
+                    <item.icon size={18} />
+                    {item.label}
+                  </NavLink>
+                );
+              }
+              return (
+                <button key={item.path} onClick={() => { navigate("/app/parent"); setMobileOpen(false); }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-[10px] text-sm font-medium text-[#6B7280] transition hover:bg-[#F5F7FA]">
+                  <item.icon size={18} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
         ) : (
           otherNav.map((item) => {
             const target = item.path === "dashboard" ? roleHome : item.path;
@@ -303,7 +618,7 @@ export function AppLayout() {
             </button>
             <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-[#9CA3AF]">
-                {isStudent ? "STUDENT WORKSPACE" : `${user?.role?.replace("_", " ")} WORKSPACE`}
+                {isStudent ? "STUDENT WORKSPACE" : isFaculty ? "FACULTY WORKSPACE" : isPlacementOfficer ? "PLACEMENT WORKSPACE" : isParent ? "PARENT WORKSPACE" : `${user?.role?.replace("_", " ")} WORKSPACE`}
               </p>
               <h1 className="truncate text-lg font-bold capitalize text-[#111827] md:text-xl">{page}</h1>
             </div>
@@ -323,9 +638,14 @@ export function AppLayout() {
               <span className="absolute right-2.5 top-2 h-2 w-2 rounded-full bg-[#F59E0B] ring-2 ring-white" />
             </button>
             <div className="hidden items-center gap-3 md:flex">
-              <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] text-[11px] font-bold text-white shadow-sm">
-                {initials}
-              </div>
+              {isStudent && studentProfile?.profile_photo_url ? (
+                <img src={studentProfile.profile_photo_url.startsWith("http") ? studentProfile.profile_photo_url : `http://localhost:8000${studentProfile.profile_photo_url}`}
+                  alt="Profile" className="h-8 w-8 shrink-0 rounded-xl object-cover" />
+              ) : (
+                <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] text-[11px] font-bold text-white shadow-sm">
+                  {initials}
+                </div>
+              )}
               <div className="max-w-[140px]">
                 <p className="truncate text-sm font-semibold text-[#111827]">{user?.full_name}</p>
                 <p className="truncate text-[11px] font-medium text-[#6B7280]">{user?.email}</p>

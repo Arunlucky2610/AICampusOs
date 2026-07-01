@@ -66,6 +66,10 @@ export type StudentProfile = {
   applied_companies_list: any[];
   github_url: string | null;
   linkedin_url: string | null;
+  linkedin_headline: string | null;
+  linkedin_about: string | null;
+  linkedin_skills: string | null;
+  linkedin_open_to_work: boolean;
   leetcode_url: string | null;
   portfolio_url: string | null;
   resume_url: string | null;
@@ -399,6 +403,15 @@ export type LinkedInStatus = {
   url: string | null;
 };
 
+export type LinkedInProfileInfo = {
+  username: string | null;
+  headline: string | null;
+  about: string | null;
+  skills: string | null;
+  open_to_work: boolean;
+  profile_strength: number;
+};
+
 export type CodingProgressData = {
   github_url: string | null;
   leetcode_url: string | null;
@@ -408,6 +421,7 @@ export type CodingProgressData = {
   github_stats: GitHubStats | null;
   leetcode_stats: LeetCodeStats | null;
   linkedin_status: LinkedInStatus | null;
+  linkedin_profile: LinkedInProfileInfo | null;
   coding_score: number;
   placement_readiness_score: number;
   last_synced_at: string | null;

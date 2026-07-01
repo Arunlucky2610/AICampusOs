@@ -1,10 +1,13 @@
 import os
 import uuid
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -43,9 +46,127 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+
+STUDENT_COLUMN_TYPES: dict[str, str] = {
+    "registration_number": "VARCHAR(40)",
+    "course": "VARCHAR(120)",
+    "branch": "VARCHAR(120)",
+    "section": "VARCHAR(10)",
+    "semester": "INTEGER",
+    "academic_year": "VARCHAR(20)",
+    "date_of_birth": "VARCHAR(20)",
+    "gender": "VARCHAR(20)",
+    "phone_number": "VARCHAR(20)",
+    "address": "TEXT",
+    "profile_photo_url": "VARCHAR(500)",
+    "cgpa": "FLOAT",
+    "current_semester_gpa": "FLOAT",
+    "attendance_percentage": "FLOAT",
+    "credits_earned": "INTEGER",
+    "total_credits": "INTEGER",
+    "faculty_advisor": "VARCHAR(120)",
+    "placement_readiness_score": "FLOAT",
+    "risk_score": "FLOAT",
+    "skill_score": "FLOAT",
+    "resume_score": "FLOAT",
+    "coding_score": "FLOAT",
+    "mock_interview_score": "FLOAT",
+    "communication_score": "FLOAT",
+    "applications": "INTEGER",
+    "eligible_companies": "INTEGER",
+    "offers": "INTEGER",
+    "preferred_role": "VARCHAR(100)",
+    "expected_package": "VARCHAR(50)",
+    "semester_gpas": "JSONB",
+    "subjects_data": "JSONB",
+    "skills_data": "JSONB",
+    "certifications": "JSONB",
+    "eligible_companies_list": "JSONB",
+    "applied_companies_list": "JSONB",
+    "github_url": "VARCHAR(500)",
+    "linkedin_url": "VARCHAR(500)",
+    "leetcode_url": "VARCHAR(500)",
+    "portfolio_url": "VARCHAR(500)",
+    "resume_url": "VARCHAR(500)",
+    "linkedin_headline": "VARCHAR(300)",
+    "linkedin_about": "TEXT",
+    "linkedin_skills": "VARCHAR(500)",
+    "linkedin_open_to_work": "INTEGER",
+    "parent_name": "VARCHAR(160)",
+    "parent_phone": "VARCHAR(20)",
+    "parent_email": "VARCHAR(255)",
+}
+
+STUDENT_DEFAULTS: dict[str, Any] = {
+    "course": "B.Tech",
+    "cgpa": 0,
+    "current_semester_gpa": 0,
+    "attendance_percentage": 0,
+    "credits_earned": 0,
+    "total_credits": 180,
+    "placement_readiness_score": 0,
+    "risk_score": 0,
+    "skill_score": 0,
+    "resume_score": 0,
+    "coding_score": 0,
+    "mock_interview_score": 0,
+    "communication_score": 0,
+    "applications": 0,
+    "eligible_companies": 0,
+    "offers": 0,
+    "semester_gpas": [],
+    "subjects_data": [],
+    "skills_data": {},
+    "certifications": [],
+    "eligible_companies_list": [],
+    "applied_companies_list": [],
+    "linkedin_open_to_work": 0,
+}
+
+
+def _json_column_type(db: Session) -> str:
+    return "JSONB" if db.bind and db.bind.dialect.name == "postgresql" else "JSON"
+
+
+def _ensure_students_columns(db: Session) -> set[str]:
+    inspector = inspect(db.bind)
+    if "students" not in inspector.get_table_names():
+        Student.__table__.create(bind=db.bind, checkfirst=True)
+        db.commit()
+        inspector = inspect(db.bind)
+
+    existing = {col["name"] for col in inspector.get_columns("students")}
+    missing = [name for name in STUDENT_COLUMN_TYPES if name not in existing]
+    if missing:
+        try:
+            for name in missing:
+                column_type = STUDENT_COLUMN_TYPES[name]
+                if column_type == "JSONB":
+                    column_type = _json_column_type(db)
+                db.execute(text(f"ALTER TABLE students ADD COLUMN {name} {column_type}"))
+                logger.info("Added missing students.%s column", name)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("Failed adding missing students columns")
+            raise
+    return {col["name"] for col in inspect(db.bind).get_columns("students")}
+
+
+def _student_model_columns() -> set[str]:
+    return {prop.key for prop in Student.__mapper__.column_attrs}
+
+
+def _apply_student_defaults(student: Student) -> None:
+    for key, value in STUDENT_DEFAULTS.items():
+        if getattr(student, key, None) is None:
+            setattr(student, key, value.copy() if isinstance(value, (dict, list)) else value)
 
 
 def _get_or_create_student(db: Session, user: User) -> Student:
+    _ensure_students_columns(db)
     student = db.query(Student).filter(Student.user_id == user.id).first()
     if not student:
         student = Student(
@@ -57,6 +178,7 @@ def _get_or_create_student(db: Session, user: User) -> Student:
         db.add(student)
         db.commit()
         db.refresh(student)
+    _apply_student_defaults(student)
     return student
 
 
@@ -75,7 +197,19 @@ def get_student_profile(
     current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
     db: Session = Depends(get_db),
 ):
-    return _get_or_create_student(db, current_user)
+    try:
+        student = _get_or_create_student(db, current_user)
+        db.commit()
+        db.refresh(student)
+        return student
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("GET /student/profile failed for user_id=%s", current_user.id)
+        raise HTTPException(status_code=500, detail={"message": "Unable to load student profile", "error": str(exc)})
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Unexpected GET /student/profile failure for user_id=%s", current_user.id)
+        raise HTTPException(status_code=500, detail={"message": "Unable to load student profile", "error": str(exc)})
 
 
 @router.put("/profile", response_model=StudentProfileRead)
@@ -84,29 +218,45 @@ def update_student_profile(
     current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
     db: Session = Depends(get_db),
 ):
-    update_data = body.model_dump(exclude_unset=True)
+    try:
+        table_columns = _ensure_students_columns(db)
+        update_data = body.model_dump(exclude_unset=True)
 
-    user_updated = False
-    if "full_name" in update_data and update_data["full_name"] is not None:
-        current_user.full_name = update_data["full_name"]
-        user_updated = True
-    if "email" in update_data and update_data["email"] is not None:
-        current_user.email = update_data["email"]
-        user_updated = True
-    if user_updated:
-        db.add(current_user)
+        user_updated = False
+        if update_data.get("full_name"):
+            current_user.full_name = update_data["full_name"]
+            user_updated = True
+        if update_data.get("email"):
+            current_user.email = update_data["email"]
+            user_updated = True
+        if user_updated:
+            db.add(current_user)
 
-    student = _get_or_create_student(db, current_user)
-    student_keys = [k for k in update_data if k not in ("full_name", "email")]
-    for key in student_keys:
-        val = update_data[key]
-        if key == "total_credits" and val is None:
-            continue
-        setattr(student, key, val)
+        student = _get_or_create_student(db, current_user)
+        writable_columns = _student_model_columns() & table_columns
+        ignored = sorted(k for k in update_data if k not in writable_columns and k not in ("full_name", "email"))
+        if ignored:
+            logger.info("Ignoring unknown student profile fields: %s", ignored)
 
-    db.commit()
-    db.refresh(student)
-    return student
+        for key, val in update_data.items():
+            if key in ("full_name", "email") or key not in writable_columns:
+                continue
+            if key == "total_credits" and val is None:
+                continue
+            setattr(student, key, val)
+
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+        return student
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("PUT /student/profile failed for user_id=%s", current_user.id)
+        raise HTTPException(status_code=500, detail={"message": "Unable to save student profile", "error": str(exc)})
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Unexpected PUT /student/profile failure for user_id=%s", current_user.id)
+        raise HTTPException(status_code=500, detail={"message": "Unable to save student profile", "error": str(exc)})
 
 
 @router.post("/profile/photo")
@@ -245,10 +395,10 @@ def sync_coding_progress(
     github_username = extract_github_username(student.github_url)
     leetcode_username = extract_leetcode_username(student.leetcode_url)
 
-    if not github_username and not leetcode_username:
+    if not github_username and not leetcode_username and not student.linkedin_url:
         return CodingProgressSyncResponse(
             success=False,
-            message="Connect your GitHub or LeetCode in Profile first",
+            message="Connect your GitHub, LeetCode, or LinkedIn in Profile first",
             data=None,
         )
 

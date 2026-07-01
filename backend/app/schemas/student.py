@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 _NUMERIC_FIELDS = [
@@ -12,6 +12,11 @@ _NUMERIC_FIELDS = [
     "mock_interview_score", "communication_score",
     "applications", "eligible_companies", "offers",
 ]
+
+
+def to_camel(value: str) -> str:
+    parts = value.split("_")
+    return parts[0] + "".join(part.capitalize() for part in parts[1:])
 
 
 class StudentProfileRead(BaseModel):
@@ -96,7 +101,11 @@ class StudentProfileRead(BaseModel):
             data.total_credits = 180
         return data
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
 
 
 class StudentProfileUpdate(BaseModel):
@@ -152,6 +161,50 @@ class StudentProfileUpdate(BaseModel):
     parent_name: str | None = None
     parent_phone: str | None = None
     parent_email: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_legacy_profile_keys(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        aliases = {
+            "photo": "profile_photo_url",
+            "profilePhoto": "profile_photo_url",
+            "profilePhotoUrl": "profile_photo_url",
+            "name": "full_name",
+            "fullName": "full_name",
+            "roll": "roll_number",
+            "rollNumber": "roll_number",
+            "regNo": "registration_number",
+            "registrationNumber": "registration_number",
+            "dept": "department",
+            "sem": "semester",
+            "sgpa": "current_semester_gpa",
+            "currentSgpa": "current_semester_gpa",
+            "currentSemesterGpa": "current_semester_gpa",
+            "attendance": "attendance_percentage",
+            "attendancePercentage": "attendance_percentage",
+            "creditsEarned": "credits_earned",
+            "facultyAdvisor": "faculty_advisor",
+            "skills": "skills_data",
+            "skillsData": "skills_data",
+            "githubUrl": "github_url",
+            "leetcodeUrl": "leetcode_url",
+            "linkedinUrl": "linkedin_url",
+            "parentName": "parent_name",
+            "parentPhone": "parent_phone",
+            "parentEmail": "parent_email",
+        }
+        normalized = dict(data)
+        for source, target in aliases.items():
+            if source in normalized and target not in normalized:
+                normalized[target] = normalized[source]
+        return normalized
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
 
 
 class RoadmapRead(BaseModel):

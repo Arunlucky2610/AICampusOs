@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
   Award, Brain, BriefcaseBusiness, CalendarDays, ChevronRight, FileText,
-  Send, Sparkles, Target, TrendingUp, Users,
+  Code2, Send, Sparkles, Target, TrendingUp, Users,
 } from "lucide-react";
 import {
   Area, AreaChart, Bar, BarChart as RBarChart, CartesianGrid, Line, LineChart,
@@ -85,6 +85,17 @@ export function StudentPlacementDashboard() {
     ] : []),
   ];
 
+  const placementSignals = [
+    { icon: FileText, label: "ATS Score", value: resumeScore != null ? `${Math.round(resumeScore * 0.92)}%` : "—", detail: "Resume parser readiness" },
+    { icon: Code2, label: "GitHub", value: p?.github_url ? "Connected" : "Missing", detail: p?.github_url || "Add GitHub profile" },
+    { icon: Code2, label: "LeetCode", value: p?.leetcode_url ? "Connected" : "Missing", detail: p?.leetcode_url || "Add LeetCode profile" },
+    { icon: Users, label: "LinkedIn", value: p?.linkedin_url ? "Connected" : "Missing", detail: p?.linkedin_headline || p?.linkedin_url || "Add LinkedIn profile" },
+    { icon: BriefcaseBusiness, label: "Projects", value: String(p?.certifications?.length || 0), detail: "Project/certification proofs" },
+    { icon: Users, label: "Mock Interviews", value: mockScore != null ? `${mockScore}%` : "—", detail: "Interview readiness score" },
+    { icon: Target, label: "Company Matches", value: eligibleCos != null ? String(eligibleCos) : "—", detail: "Eligible company pool" },
+    { icon: Send, label: "Applications", value: appsSent != null ? String(appsSent) : "—", detail: "Applications submitted" },
+  ];
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
       <div className="flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
@@ -136,6 +147,30 @@ export function StudentPlacementDashboard() {
             </div>
           </Card>
         ))}
+      </section>
+
+      <section>
+        <div className="mb-4">
+          <p className="text-sm font-semibold text-[#6C4CF1]">PLACEMENT PROFILE</p>
+          <h3 className="mt-1 text-xl font-bold text-[#111827]">Profile Signals</h3>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {placementSignals.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Card key={item.label} className="p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#6C4CF1]/10 text-[#6C4CF1]">
+                    <Icon size={18} />
+                  </div>
+                  <span className="max-w-[120px] truncate text-right text-sm font-bold text-[#111827]">{item.value}</span>
+                </div>
+                <p className="mt-4 text-sm font-semibold text-[#111827]">{item.label}</p>
+                <p className="mt-1 truncate text-xs font-medium text-[#6B7280]">{item.detail}</p>
+              </Card>
+            );
+          })}
+        </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr_1fr]">

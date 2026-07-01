@@ -22,10 +22,9 @@ const studentNav: NavSection[] = [
     title: "ACADEMICS",
     items: [
       { label: "Dashboard", path: "student", icon: LayoutDashboard },
-      { label: "CGPA Analytics", path: "student/cgpa-analytics", icon: TrendingUp },
+      { label: "Academic Performance", path: "student/cgpa-analytics", icon: TrendingUp },
       { label: "Attendance", path: "student/attendance", icon: CalendarDays },
       { label: "Internal Marks", path: "student/internal-marks", icon: FileText },
-      { label: "Semester Results", path: "student/semester-results", icon: Award },
       { label: "Subjects", path: "student/subjects", icon: BookOpen },
       { label: "Assignments", path: "student/assignments", icon: ClipboardList },
       { label: "Timetable", path: "student/timetable", icon: Clock },
@@ -188,11 +187,11 @@ export function AppLayout() {
   const isFacultyPath = (path: string) => path.startsWith("faculty/") || path === "faculty";
   const isPlacementPath = (path: string) => path.startsWith("placement/") || path === "placement";
 
-  return <div className="min-h-screen bg-[#F5F7FA] text-ink">
+  return <div className="min-h-screen bg-white text-ink">
     {/* Desktop Sidebar */}
     <aside className={cn(
-      "fixed inset-y-0 left-0 z-40 hidden border-r border-[#E8ECF1] bg-white transition-all lg:block",
-      collapsed ? "w-[88px]" : "w-[280px]"
+      "fixed bottom-0 left-0 top-0 z-40 hidden overflow-hidden rounded-r-[32px] border-r border-[#ECEBFF] bg-white/90 shadow-[0_24px_80px_rgba(16,18,37,0.08)] backdrop-blur-2xl transition-all lg:block",
+      collapsed ? "w-[76px]" : "w-[270px]"
     )}>
       {/* Logo */}
       <div className={cn("flex h-[72px] items-center px-5", collapsed && "justify-center px-0")}>
@@ -208,24 +207,24 @@ export function AppLayout() {
       </div>
 
       <div className={cn("px-3", collapsed && "px-2")}>
-        <div className="h-px bg-[#E8ECF1]" />
+        <div className="h-px bg-[#ECEBFF]" />
       </div>
 
       {/* Collapse toggle */}
       {collapsed ? (
-        <button className="mx-auto mt-4 grid h-8 w-8 place-items-center rounded-lg text-[#9CA3AF] transition hover:bg-[#F5F7FA] hover:text-[#111827]" onClick={() => setCollapsed(false)} aria-label="Expand sidebar">
+          <button className="mx-auto mt-4 grid h-9 w-9 place-items-center rounded-2xl text-[#9CA3AF] transition hover:bg-[#F5F3FF] hover:text-[#6D5DF6]" onClick={() => setCollapsed(false)} aria-label="Expand sidebar">
           <ChevronRight size={16} />
         </button>
       ) : (
         <div className="flex justify-end px-4 pt-3">
-          <button className="grid h-7 w-7 place-items-center rounded-lg text-[#9CA3AF] transition hover:bg-[#F5F7FA] hover:text-[#111827]" onClick={() => setCollapsed(true)} aria-label="Collapse sidebar">
+          <button className="grid h-8 w-8 place-items-center rounded-2xl text-[#9CA3AF] transition hover:bg-[#F5F3FF] hover:text-[#6D5DF6]" onClick={() => setCollapsed(true)} aria-label="Collapse sidebar">
             <ChevronLeft size={15} />
           </button>
         </div>
       )}
 
       {/* Navigation */}
-      <nav className={cn("mt-2 overflow-y-auto", collapsed ? "px-2" : "px-3")} style={{ height: "calc(100vh - 180px)" }}>
+      <nav className={cn("mt-2 overflow-y-auto pb-6", collapsed ? "px-2" : "px-3")} style={{ height: "calc(100vh - 118px)" }}>
         {isStudent ? (
           /* Student premium sidebar with sections */
           studentNav.map((section) => (
@@ -436,21 +435,6 @@ export function AppLayout() {
           </div>
         )}
       </nav>
-
-      {/* Bottom profile summary */}
-      {!collapsed && isStudent && (
-        <div className="absolute bottom-0 left-0 right-0 border-t border-[#E8ECF1] bg-white p-4">
-          <div className="flex items-center gap-3 rounded-xl bg-[#F5F7FA] p-3">
-            <Avatar src={studentProfile?.profile_photo_url} name={user?.full_name} size="md" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-[#111827]">{user?.full_name || "Student"}</p>
-              <p className="truncate text-xs text-[#6B7280]">
-                {studentProfile?.department || "Department"} • {studentProfile?.year ? `${studentProfile.year}th Year` : ""} • Sem {studentProfile?.semester || ""}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </aside>
 
     {/* Mobile overlay */}
@@ -600,12 +584,12 @@ export function AppLayout() {
     </aside>
 
     {/* Main content */}
-    <main className={cn("transition-all duration-200", collapsed ? "lg:ml-[88px]" : "lg:ml-[280px]")}>
+    <main className={cn("transition-all duration-200", collapsed ? "lg:ml-[76px]" : "lg:ml-[270px]")}>
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-[#E8ECF1] bg-white/90 backdrop-blur-xl">
-        <div className="flex h-[72px] items-center justify-between gap-4 px-4 md:px-8">
+      <header className="sticky top-0 z-20 h-24 bg-white/90 backdrop-blur-2xl">
+        <div className="mx-4 flex h-[72px] translate-y-3 items-center justify-between gap-4 rounded-[28px] border border-[#ECEBFF] bg-white px-4 shadow-[0_14px_44px_rgba(16,18,37,0.055)] md:mx-6 md:px-5">
           <div className="flex min-w-0 items-center gap-4">
-            <button className="rounded-xl border border-[#E8ECF1] p-2 text-[#6B7280] lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
+            <button className="rounded-2xl border border-[#ECEBFF] p-2 text-[#6B7280] lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
               <Menu size={18} />
             </button>
             <div className="min-w-0">
@@ -616,7 +600,7 @@ export function AppLayout() {
             </div>
           </div>
 
-          <div className="hidden h-10 min-w-[320px] items-center gap-3 rounded-xl border border-[#E8ECF1] bg-[#F5F7FA] px-3.5 text-sm text-[#9CA3AF] md:flex">
+          <div className="hidden h-11 min-w-[320px] items-center gap-3 rounded-2xl border border-[#ECEBFF] bg-[#F8F7FF] px-3.5 text-sm text-[#9CA3AF] md:flex">
             <Search size={16} />
             <span className="flex-1">Search anything...</span>
             <span className="inline-flex items-center gap-1 rounded-lg border border-[#E8ECF1] bg-white px-2 py-0.5 text-[11px] font-medium">
@@ -625,7 +609,7 @@ export function AppLayout() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="relative grid h-9 w-9 place-items-center rounded-xl border border-[#E8ECF1] bg-white text-[#6B7280] transition hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1]" aria-label="Notifications">
+            <button className="relative grid h-10 w-10 place-items-center rounded-2xl border border-[#ECEBFF] bg-white text-[#6B7280] transition hover:-translate-y-0.5 hover:border-[#6D5DF6]/30 hover:text-[#6D5DF6]" aria-label="Notifications">
               <Bell size={17} />
               <span className="absolute right-2.5 top-2 h-2 w-2 rounded-full bg-[#F59E0B] ring-2 ring-white" />
             </button>
@@ -645,7 +629,7 @@ export function AppLayout() {
       </header>
 
       {/* Page content */}
-      <div className="p-4 md:p-8">
+      <div className="p-4 md:p-6">
         <Outlet />
       </div>
     </main>

@@ -15,6 +15,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import { Card } from "../../components/ui/Card";
+import { useOptionalStudentProfile } from "../../context/StudentProfileContext";
 import { cn } from "../../utils/cn";
 import type {
   CodingProgressData, GitHubRepo, GitHubStats, LeetCodeStats,
@@ -140,7 +141,8 @@ function generateInsights(data: CodingProgressData): Insight[] {
   const insights: Insight[] = [];
   const lc = data.leetcode_stats;
   const gh = data.github_stats;
-  if (!lc && !gh) return [{
+  const linkedinProfile = data.linkedin_profile;
+  if (!lc && !gh && !data.linkedin_url && !data.linkedin_status?.connected) return [{
     message: "Sync your coding profiles to get personalized AI insights.",
     type: "info",
   }];
@@ -186,6 +188,17 @@ function generateInsights(data: CodingProgressData): Insight[] {
       type: "warning",
     });
   }
+  if (data?.linkedin_url || data?.linkedin_status?.connected) {
+    if (!linkedinProfile?.headline?.trim()) {
+      insights.push({ message: "Add a strong LinkedIn headline.", type: "warning" });
+    }
+    if (!linkedinProfile?.about?.trim()) {
+      insights.push({ message: "Add About section for recruiter visibility.", type: "warning" });
+    }
+    if (!linkedinProfile?.skills?.trim()) {
+      insights.push({ message: "Add top skills like React, FastAPI, Python, AI/ML.", type: "warning" });
+    }
+  }
   if (insights.length === 0) {
     insights.push({
       message: "Your coding profile looks great! Keep up the consistent work.",
@@ -214,17 +227,11 @@ function ProgressBar({ value, max = 100, color, size = "md" }: { value: number; 
 export function StudentCodingProgress() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile } = useOptionalStudentProfile();
 
   const { data: codingData, isLoading: codingLoading } = useQuery<CodingProgressData>({
     queryKey: ["coding-progress"],
     queryFn: async () => (await api.get("/student/coding-progress")).data,
-    staleTime: 30_000,
-    retry: 1,
-  });
-
-  const { data: profile } = useQuery({
-    queryKey: ["student-profile"],
-    queryFn: async () => (await api.get("/student/profile")).data,
     staleTime: 30_000,
     retry: 1,
   });
@@ -261,7 +268,8 @@ export function StudentCodingProgress() {
 
   const lc = data?.leetcode_stats;
   const gh = data?.github_stats;
-  const li = data?.linkedin_status;
+  const linkedinProfile = data?.linkedin_profile;
+  const linkedinStrength = linkedinProfile?.profile_strength ?? 0;
   const insights = generateInsights(data || {} as CodingProgressData);
 
   const weeklyData = lc?.recent_submissions?.length
@@ -537,6 +545,8 @@ export function StudentCodingProgress() {
                   username: data?.github_username,
                   icon: GitBranch,
                   color: "#111827",
+                  profileStrength: 0,
+                  lastVerified: null,
                 },
                 {
                   label: "LeetCode",
@@ -545,14 +555,18 @@ export function StudentCodingProgress() {
                   username: data?.leetcode_username,
                   icon: Code2,
                   color: "#F59E0B",
+                  profileStrength: 0,
+                  lastVerified: null,
                 },
                 {
                   label: "LinkedIn",
                   connected: !!links.linkedinUrl,
                   url: links.linkedinUrl,
-                  username: null,
+                  username: linkedinProfile?.username,
                   icon: Globe,
                   color: "#0A66C2",
+                  profileStrength: linkedinStrength,
+                  lastVerified: data?.last_synced_at,
                 },
               ].map((p) => (
                 <div key={p.label} className={cn(
@@ -573,6 +587,20 @@ export function StudentCodingProgress() {
                   {p.connected ? (
                     <div className="space-y-2">
                       {p.username && <p className="text-xs text-[#6B7280]">@{p.username}</p>}
+                      {p.label === "LinkedIn" && (
+                        <>
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-[#6B7280]">Profile Strength</span>
+                              <span className="font-bold text-[#6C4CF1]">{p.profileStrength}%</span>
+                            </div>
+                            <ProgressBar value={p.profileStrength || 0} color="#6C4CF1" size="sm" />
+                          </div>
+                          <p className="text-xs text-[#6B7280]">
+                            Last verified from saved profile link: {p.lastVerified ? formatRelativeTime(p.lastVerified) : "Not synced yet"}
+                          </p>
+                        </>
+                      )}
                       {p.url && (
                         <a href={p.url} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-[#E8ECF1] px-3 py-1.5 text-xs font-semibold text-[#6C4CF1] transition hover:bg-[#F5F7FA]">

@@ -22,7 +22,7 @@ import {
 import { StudentAcademicsDashboard } from "./pages/app/StudentAcademicsDashboard";
 import { StudentPlacementDashboard } from "./pages/app/StudentPlacementDashboard";
 import {
-  StudentCgpaAnalytics, StudentAttendance, StudentInternalMarks, StudentSemesterResults,
+  StudentCgpaAnalytics, StudentAttendance, StudentInternalMarks,
   StudentSubjects, StudentAssignments, StudentTimetable, StudentFacultyFeedback,
 } from "./pages/app/StudentAcademicModules";
 import {
@@ -74,7 +74,7 @@ const router = createBrowserRouter([
             { path: "student/cgpa-analytics", element: <ErrorBoundary name="CGPA"><StudentCgpaAnalytics /></ErrorBoundary> },
             { path: "student/attendance", element: <ErrorBoundary name="Attendance"><StudentAttendance /></ErrorBoundary> },
             { path: "student/internal-marks", element: <ErrorBoundary name="InternalMarks"><StudentInternalMarks /></ErrorBoundary> },
-            { path: "student/semester-results", element: <ErrorBoundary name="SemResults"><StudentSemesterResults /></ErrorBoundary> },
+            { path: "student/semester-results", element: <Navigate to="/app/student/cgpa-analytics" replace /> },
             { path: "student/subjects", element: <ErrorBoundary name="Subjects"><StudentSubjects /></ErrorBoundary> },
             { path: "student/assignments", element: <ErrorBoundary name="Assignments"><StudentAssignments /></ErrorBoundary> },
             { path: "student/timetable", element: <ErrorBoundary name="Timetable"><StudentTimetable /></ErrorBoundary> },

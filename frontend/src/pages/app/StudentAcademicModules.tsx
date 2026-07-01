@@ -14,7 +14,7 @@ import { useStudentProfile } from "../../context/StudentProfileContext";
 import { cn } from "../../utils/cn";
 
 // =====================================================
-// CGPA Analytics
+// Academic Performance
 // =====================================================
 
 const semesterData = [
@@ -40,15 +40,57 @@ const subjectCgpaBreakdown = [
 export function StudentCgpaAnalytics() {
   const { profile } = useStudentProfile();
   const [view, setView] = useState<"sgpa" | "cgpa">("cgpa");
+  const [activeTab, setActiveTab] = useState<"overview" | "results" | "subjects" | "grades">("overview");
+  const [selectedSem, setSelectedSem] = useState("Sem 8");
   const p = profile;
 
   const semGpas = p?.semester_gpas?.length ? p.semester_gpas : [];
   const chartData = semGpas.length > 0 ? semGpas.map((s: any) => ({ semester: s.semester, sgpa: s.sgpa || 0, cgpa: s.cgpa || 0, credits: s.credits || 0 })) : semesterData;
 
   const totalCredits = chartData.reduce((acc: number, s: any) => acc + (s.credits || 0), 0);
+  const resultData = chartData.map((s: any, index: number) => ({
+    semester: s.semester,
+    sgpa: s.sgpa || 0,
+    cgpa: s.cgpa || 0,
+    credits: s.credits || 0,
+    totalMarks: allSemesterResults[index]?.totalMarks || Math.round((s.sgpa || 0) * 100),
+    percentage: allSemesterResults[index]?.percentage || Math.round((s.sgpa || 0) * 10),
+    rank: allSemesterResults[index]?.rank || 0,
+    status: (s.sgpa || 0) >= 5 ? "Pass" : "Needs Attention",
+  }));
+  const current = resultData.find((s) => s.semester === selectedSem) || resultData[resultData.length - 1] || allSemesterResults[0];
+  const subjects = p?.subjects_data?.length ? p.subjects_data : subjectCgpaBreakdown;
+  const gradeSummary = [
+    { grade: "S / O", count: subjects.filter((s: any) => (s.grade || "").includes("S") || (s.grade || "").includes("O")).length || 1, color: "#6C4CF1" },
+    { grade: "A", count: subjects.filter((s: any) => (s.grade || "A").startsWith("A")).length || Math.max(1, Math.floor(subjects.length / 2)), color: "#22C55E" },
+    { grade: "B", count: subjects.filter((s: any) => (s.grade || "").startsWith("B")).length || Math.max(0, subjects.length - 3), color: "#F59E0B" },
+    { grade: "Backlog", count: resultData.filter((s) => s.status !== "Pass").length, color: "#EF4444" },
+  ];
 
   return (
-    <PageShell title="CGPA Analytics" subtitle="Track your academic performance across all semesters.">
+    <PageShell title="Academic Performance" subtitle="SGPA, CGPA, subject marks, semester results, and grade summary in one place.">
+      <div className="mb-6 overflow-x-auto rounded-2xl border border-[#E8ECF1] bg-white p-1.5 no-scrollbar">
+        <div className="flex min-w-max gap-1.5">
+          {[
+            { key: "overview", label: "SGPA / CGPA" },
+            { key: "results", label: "Semester Results" },
+            { key: "subjects", label: "Subject Marks" },
+            { key: "grades", label: "Grade Summary" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              className={cn(
+                "rounded-xl px-4 py-2 text-sm font-semibold transition",
+                activeTab === tab.key ? "bg-[#6C4CF1] text-white shadow-md shadow-[#6C4CF1]/20" : "text-[#6B7280] hover:bg-[#F5F7FA] hover:text-[#111827]",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Overall CGPA", value: p?.cgpa?.toFixed(2) || "—", sub: "Out of 10", color: "#6C4CF1" },
@@ -64,9 +106,9 @@ export function StudentCgpaAnalytics() {
         ))}
       </div>
 
-      <Card className="p-6">
+      <Card className={cn("p-6", activeTab !== "overview" && "hidden")}>
         <div className="mb-6 flex items-center justify-between">
-          <div><p className="text-sm font-semibold text-[#6C4CF1]">PERFORMANCE TREND</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Semester-wise CGPA Trend</h3></div>
+          <div><p className="text-sm font-semibold text-[#6C4CF1]">PERFORMANCE TREND</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Semester-wise SGPA and Overall CGPA Trend</h3></div>
           <div className="flex gap-1.5 rounded-xl border border-[#E8ECF1] p-1">
             {(["sgpa", "cgpa"] as const).map((v) => (
               <button key={v} onClick={() => setView(v)}
@@ -85,14 +127,14 @@ export function StudentCgpaAnalytics() {
         </ResponsiveContainer>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+      <div className={cn("grid gap-6 xl:grid-cols-[1.3fr_0.7fr]", activeTab !== "overview" && "hidden")}>
         <Card className="p-6">
           <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">BREAKDOWN</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Semester-wise Breakdown</h3></div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-[#E8ECF1] text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
-                  <th className="py-3 pr-4">Semester</th><th className="py-3 pr-4">SGPA</th><th className="py-3 pr-4">CGPA</th><th className="py-3 pr-4">Credits</th><th className="py-3">Status</th>
+                  <th className="py-3 pr-4">Semester</th><th className="py-3 pr-4">SGPA</th><th className="py-3 pr-4">CGPA</th><th className="py-3 pr-4">Credits</th><th className="py-3">Pass / Fail</th>
                 </tr>
               </thead>
               <tbody>
@@ -102,7 +144,7 @@ export function StudentCgpaAnalytics() {
                     <td className="py-3.5 pr-4 font-medium text-[#111827]">{s.sgpa?.toFixed?.(1) || s.sgpa || "—"}</td>
                     <td className="py-3.5 pr-4 font-medium text-[#111827]">{s.cgpa?.toFixed?.(2) || s.cgpa || "—"}</td>
                     <td className="py-3.5 pr-4 font-medium text-[#6B7280]">{s.credits || "—"}</td>
-                    <td className="py-3.5"><span className="rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-xs font-semibold text-[#22C55E]">Clear</span></td>
+                    <td className="py-3.5"><span className="rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-xs font-semibold text-[#22C55E]">Pass</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -120,6 +162,114 @@ export function StudentCgpaAnalytics() {
                   <div><p className="text-sm font-semibold text-[#111827]">{s.name || s.subject}</p><p className="text-xs text-[#6B7280]">{s.credits || 0} credits</p></div>
                 </div>
                 <span className="text-sm font-bold text-[#111827]">{s.credits || 0}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className={cn("space-y-6", activeTab !== "results" && "hidden")}>
+        <div className="flex flex-wrap gap-2">
+          {resultData.map((s) => (
+            <button
+              key={s.semester}
+              onClick={() => setSelectedSem(s.semester)}
+              className={cn(
+                "rounded-xl border px-4 py-2 text-sm font-semibold transition",
+                selectedSem === s.semester ? "border-[#6C4CF1] bg-[#6C4CF1] text-white shadow-md" : "border-[#E8ECF1] text-[#6B7280] hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1]",
+              )}
+            >
+              {s.semester}
+            </button>
+          ))}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "SGPA", value: current.sgpa || "—", color: "#6C4CF1" },
+            { label: "CGPA", value: current.cgpa || "—", color: "#3B82F6" },
+            { label: "Credits", value: current.credits || "—", color: "#22C55E" },
+            { label: "Status", value: current.status, color: current.status === "Pass" ? "#22C55E" : "#EF4444" },
+          ].map((kpi) => (
+            <Card key={kpi.label} className="p-5">
+              <p className="text-sm font-medium text-[#6B7280]">{kpi.label}</p>
+              <p className="mt-2 text-[30px] font-bold tracking-tight" style={{ color: kpi.color }}>{kpi.value}</p>
+            </Card>
+          ))}
+        </div>
+        <Card className="p-6">
+          <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">RESULT CARDS</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Semester Result Cards</h3></div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {resultData.map((s) => (
+              <div key={s.semester} className="rounded-2xl border border-[#E8ECF1] bg-white p-4 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="text-base font-bold text-[#111827]">{s.semester}</p>
+                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", s.status === "Pass" ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FEE2E2] text-[#DC2626]")}>{s.status}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-[#6B7280]">SGPA</p><p className="font-bold text-[#111827]">{s.sgpa}</p></div>
+                  <div><p className="text-[#6B7280]">CGPA</p><p className="font-bold text-[#111827]">{s.cgpa}</p></div>
+                  <div><p className="text-[#6B7280]">Credits</p><p className="font-bold text-[#111827]">{s.credits}</p></div>
+                  <div><p className="text-[#6B7280]">Marks</p><p className="font-bold text-[#111827]">{s.totalMarks || "—"}</p></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className={cn("grid gap-6 xl:grid-cols-[1fr_.9fr]", activeTab !== "subjects" && "hidden")}>
+        <Card className="p-6">
+          <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">SUBJECT MARKS</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Subject-wise Marks and Grade Points</h3></div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={subjects.map((s: any) => ({ name: s.name || s.subject || s.code, marks: (s.points || s.credits || 7) * 10 }))}>
+              <CartesianGrid stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E8ECF1" }} />
+              <Bar dataKey="marks" fill="#6C4CF1" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+        <Card className="p-6">
+          <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">PASS / FAIL</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Subject Status</h3></div>
+          <div className="space-y-3">
+            {subjects.map((s: any) => {
+              const points = s.points || s.credits || 7;
+              const passed = points >= 5;
+              return (
+                <div key={s.name || s.subject || s.code} className="flex items-center justify-between rounded-xl border border-[#E8ECF1] px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[#111827]">{s.name || s.subject || s.code}</p>
+                    <p className="text-xs text-[#6B7280]">Grade {s.grade || "A"} • {s.credits || 0} credits</p>
+                  </div>
+                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", passed ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FEE2E2] text-[#DC2626]")}>{passed ? "Pass" : "Fail"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+      <div className={cn("grid gap-6 xl:grid-cols-[.8fr_1.2fr]", activeTab !== "grades" && "hidden")}>
+        <Card className="p-6">
+          <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">GRADE SUMMARY</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Grade Distribution</h3></div>
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie data={gradeSummary} innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="count">
+                {gradeSummary.map((entry) => <Cell key={entry.grade} fill={entry.color} />)}
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E8ECF1" }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </Card>
+        <Card className="p-6">
+          <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">SUMMARY</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Academic Grade Summary</h3></div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {gradeSummary.map((grade) => (
+              <div key={grade.grade} className="rounded-2xl border border-[#E8ECF1] p-4">
+                <div className="mb-3 h-2 rounded-full" style={{ backgroundColor: grade.color }} />
+                <p className="text-sm font-medium text-[#6B7280]">{grade.grade}</p>
+                <p className="mt-1 text-2xl font-bold text-[#111827]">{grade.count}</p>
               </div>
             ))}
           </div>
@@ -315,82 +465,6 @@ const allSemesterResults = [
   { semester: "Sem 7", sgpa: 8.4, cgpa: 8.1, credits: 22, totalMarks: 835, percentage: 84.0, rank: 15 },
   { semester: "Sem 8", sgpa: 8.5, cgpa: 8.45, credits: 24, totalMarks: 0, percentage: 0, rank: 0 },
 ];
-
-export function StudentSemesterResults() {
-  const [selectedSem, setSelectedSem] = useState("Sem 8");
-
-  const current = allSemesterResults.find((s) => s.semester === selectedSem)!;
-
-  return (
-    <PageShell title="Semester Results" subtitle="View all your semester results and academic performance.">
-      <div className="flex flex-wrap gap-2 mb-6">
-        {allSemesterResults.map((s) => (
-          <button
-            key={s.semester}
-            onClick={() => setSelectedSem(s.semester)}
-            className={cn(
-              "rounded-xl border px-4 py-2 text-sm font-semibold transition",
-              selectedSem === s.semester
-                ? "border-[#6C4CF1] bg-[#6C4CF1] text-white shadow-md"
-                : "border-[#E8ECF1] text-[#6B7280] hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1]"
-            )}
-          >
-            {s.semester}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-        {[
-          { label: "SGPA", value: current.sgpa, color: "#6C4CF1" },
-          { label: "CGPA", value: current.cgpa, color: "#3B82F6" },
-          { label: "Credits", value: current.credits, color: "#22C55E" },
-          { label: "Rank", value: current.rank ? `#${current.rank}` : "In Progress", color: "#F59E0B" },
-        ].map((kpi) => (
-          <Card key={kpi.label} className="p-5">
-            <p className="text-sm font-medium text-[#6B7280]">{kpi.label}</p>
-            <p className="mt-2 text-[32px] font-bold tracking-tight text-[#111827]" style={{ color: kpi.color }}>{kpi.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      <Card className="p-6">
-        <div className="mb-4">
-          <p className="text-sm font-semibold text-[#6C4CF1]">ALL SEMESTERS</p>
-          <h3 className="mt-1 text-xl font-bold text-[#111827]">Semester Results History</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-[#E8ECF1] text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
-                <th className="py-3 pr-4">Semester</th>
-                <th className="py-3 pr-4">SGPA</th>
-                <th className="py-3 pr-4">CGPA</th>
-                <th className="py-3 pr-4">Credits</th>
-                <th className="py-3 pr-4">Total Marks</th>
-                <th className="py-3 pr-4">Percentage</th>
-                <th className="py-3">Rank</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allSemesterResults.map((s) => (
-                <tr key={s.semester} className="border-b border-[#F3F4F6] transition hover:bg-[#F5F7FA]">
-                  <td className="py-3.5 pr-4 font-semibold text-[#111827]">{s.semester}</td>
-                  <td className="py-3.5 pr-4">{s.sgpa}</td>
-                  <td className="py-3.5 pr-4">{s.cgpa}</td>
-                  <td className="py-3.5 pr-4">{s.credits}</td>
-                  <td className="py-3.5 pr-4">{s.totalMarks || "—"}</td>
-                  <td className="py-3.5 pr-4">{s.percentage ? `${s.percentage}%` : "—"}</td>
-                  <td className="py-3.5">{s.rank ? `#${s.rank}` : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </PageShell>
-  );
-}
 
 // =====================================================
 // Subjects

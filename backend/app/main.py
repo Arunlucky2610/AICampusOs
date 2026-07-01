@@ -24,6 +24,7 @@ def run_pending_migrations():
         logger.info("Running alembic migrations...")
         alembic.config.main(argv=["--raiseerr", "upgrade", "head"])
         logger.info("Alembic migrations complete.")
+        _ensure_columns()
     except SystemExit:
         logger.warning("Alembic exit, trying direct ALTER TABLE as fallback...")
         _ensure_columns()
@@ -73,20 +74,28 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
 
-import os
+cors_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    *settings.allowed_origins,
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(dict.fromkeys(cors_origins)),
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 from pathlib import Path
 uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 (uploads_dir / "profile_photos").mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 app.include_router(auth.router, prefix=settings.api_prefix)

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
 import type { StudentProfile } from "../types";
+import { normalizeStudentProfile, toProfileApiPayload } from "../utils/profile";
 
 type ProfileCompletion = {
   percent: number;
@@ -62,6 +63,10 @@ const defaultProfile = (name: string, email: string): StudentProfile => ({
   applied_companies_list: [],
   github_url: null,
   linkedin_url: null,
+  linkedin_headline: null,
+  linkedin_about: null,
+  linkedin_skills: null,
+  linkedin_open_to_work: false,
   leetcode_url: null,
   portfolio_url: null,
   resume_url: null,
@@ -78,8 +83,8 @@ export function StudentProfileProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["student-profile"],
-    queryFn: async () => (await api.get<StudentProfile>("/student/profile")).data,
+    queryKey: ["student-profile", user?.id],
+    queryFn: async () => normalizeStudentProfile((await api.get<StudentProfile>("/student/profile")).data),
     enabled: isStudent,
     staleTime: 30_000,
     retry: 1,
@@ -87,7 +92,7 @@ export function StudentProfileProvider({ children }: { children: ReactNode }) {
 
   const mutation = useMutation({
     mutationFn: async (body: Partial<StudentProfile>) =>
-      (await api.put<StudentProfile>("/student/profile", body)).data,
+      normalizeStudentProfile((await api.put<StudentProfile>("/student/profile", toProfileApiPayload(body))).data),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["student-profile"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", "student"] });

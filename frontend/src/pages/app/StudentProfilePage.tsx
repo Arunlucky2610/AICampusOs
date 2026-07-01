@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Award, BookOpen, BriefcaseBusiness, CalendarDays, Camera, CheckCircle2, ChevronDown,
+  AlertTriangle, Award, BookOpen, BriefcaseBusiness, CalendarDays, Camera, CheckCircle2, ChevronDown,
   Code2, Edit3, ExternalLink, FileText, GitBranch, Globe, GraduationCap, Layers,
-  Link2, Loader2, Mail, MapPin, Phone, Plus, Save, Sparkles, Upload, User, UserPlus, X,
+  Info, Link2, Loader2, Mail, MapPin, Phone, Plus, Save, Sparkles, Upload, User, UserPlus, X,
 } from "lucide-react";
 import { api } from "../../api/client";
 import { Card } from "../../components/ui/Card";
@@ -698,19 +698,73 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
 
 // ─── Toast ──────────────────────────────────────────────────
 
-function Toast({ message, type, visible }: { message: string; type: "success" | "error"; visible: boolean }) {
+type ToastType = "success" | "warning" | "error" | "info";
+type ToastItem = { id: number; message: string; type: ToastType };
+
+const TOAST_STYLES: Record<ToastType, { icon: typeof CheckCircle2; shell: string; iconBox: string; iconColor: string }> = {
+  success: {
+    icon: CheckCircle2,
+    shell: "border-[#BBF7D0] bg-white text-[#14532D]",
+    iconBox: "bg-[#DCFCE7]",
+    iconColor: "text-[#16A34A]",
+  },
+  warning: {
+    icon: AlertTriangle,
+    shell: "border-[#FDE68A] bg-white text-[#78350F]",
+    iconBox: "bg-[#FEF3C7]",
+    iconColor: "text-[#D97706]",
+  },
+  error: {
+    icon: AlertTriangle,
+    shell: "border-[#FECACA] bg-white text-[#7F1D1D]",
+    iconBox: "bg-[#FEE2E2]",
+    iconColor: "text-[#DC2626]",
+  },
+  info: {
+    icon: Info,
+    shell: "border-[#DDD6FE] bg-white text-[#312E81]",
+    iconBox: "bg-[#EEF2FF]",
+    iconColor: "text-[#6C4CF1]",
+  },
+};
+
+function ToastStack({ items, onClose }: { items: ToastItem[]; onClose: (id: number) => void }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : -20 }}
-      className={cn(
-        "fixed top-6 right-6 z-[100] flex items-center gap-3 rounded-2xl border px-5 py-3 text-sm font-semibold shadow-xl",
-        type === "success" ? "border-[#22C55E]/30 bg-[#22C55E]/5 text-[#22C55E]" :
-          "border-[#EF4444]/30 bg-[#FEF2F2] text-[#EF4444]",
-      )}
+      initial={false}
+      className="fixed left-4 right-4 top-[104px] z-[100] flex flex-col gap-2.5 md:left-auto md:right-6 md:top-[112px] md:w-[380px]"
     >
-      {type === "success" ? <CheckCircle2 size={17} /> : <X size={17} />}
-      {message}
+      {items.map((item) => {
+        const style = TOAST_STYLES[item.type];
+        const Icon = style.icon;
+        return (
+          <motion.div
+            key={item.id}
+            layout
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className={cn(
+              "flex w-full items-start gap-3 rounded-[18px] border px-4 py-3 text-sm shadow-[0_18px_48px_rgba(16,18,37,0.12)] backdrop-blur-xl",
+              style.shell,
+            )}
+          >
+            <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-xl", style.iconBox, style.iconColor)}>
+              <Icon size={16} />
+            </div>
+            <p className="min-w-0 flex-1 pt-1 font-semibold leading-5">{item.message}</p>
+            <button
+              type="button"
+              onClick={() => onClose(item.id)}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[#9CA3AF] transition hover:bg-[#F5F7FA] hover:text-[#111827]"
+              aria-label="Close notification"
+            >
+              <X size={15} />
+            </button>
+          </motion.div>
+        );
+      })}
     </motion.div>
   );
 }
@@ -722,11 +776,12 @@ export function StudentProfilePage() {
   const { user, refreshUser } = useAuth();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<StudentProfile>>({});
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<"personal" | "academic" | "contact" | "social" | "skills">("personal");
 
   useDraftSave(form, editing);
   const hasUnsaved = useUnsavedWarning(form, editing);
@@ -760,9 +815,17 @@ export function StudentProfilePage() {
   }, [form]);
 
   // ─── Toast helper ────────────────────────────
-  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
+  const dismissToast = useCallback((id: number) => {
+    setToasts((items) => items.filter((item) => item.id !== id));
+  }, []);
+
+  const showToast = useCallback((message: string, type: ToastType = "success") => {
+    const friendlyMessage = message === "Please fill in all required fields before saving."
+      ? "Please complete the required fields before saving."
+      : message;
+    const id = Date.now() + Math.random();
+    setToasts((items) => [...items.slice(-2), { id, message: friendlyMessage, type }]);
+    window.setTimeout(() => dismissToast(id), 3600);
   }, []);
 
   // ─── Restore draft ───────────────────────────
@@ -826,6 +889,13 @@ export function StudentProfilePage() {
   if (!profile) return null;
 
   const p = { ...profile, ...form } as StudentProfile;
+  const profileTabs = [
+    { key: "personal" as const, label: "Personal", icon: User },
+    { key: "academic" as const, label: "Academic", icon: GraduationCap },
+    { key: "contact" as const, label: "Contact", icon: Phone },
+    { key: "social" as const, label: "Social", icon: ExternalLink },
+    { key: "skills" as const, label: "Skills", icon: Code2 },
+  ];
 
   // ─── Edit controls ───────────────────────────
   const startEdit = () => {
@@ -865,6 +935,10 @@ export function StudentProfilePage() {
       certifications: profile.certifications,
       github_url: profile.github_url,
       linkedin_url: profile.linkedin_url,
+      linkedin_headline: profile.linkedin_headline,
+      linkedin_about: profile.linkedin_about,
+      linkedin_skills: profile.linkedin_skills,
+      linkedin_open_to_work: profile.linkedin_open_to_work,
       leetcode_url: profile.leetcode_url,
       portfolio_url: profile.portfolio_url,
       resume_url: profile.resume_url,
@@ -878,7 +952,7 @@ export function StudentProfilePage() {
   const cancelEdit = () => {
     setForm({});
     setEditing(false);
-    setToast(null);
+    setToasts([]);
   };
 
   const handleSave = async () => {
@@ -972,100 +1046,43 @@ export function StudentProfilePage() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-      {/* Toast */}
-      <Toast message={toast?.message || ""} type={toast?.type || "success"} visible={!!toast} />
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-[1320px] space-y-6">
+      <ToastStack items={toasts} onClose={dismissToast} />
 
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
-        <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#6C4CF1]/15 bg-[#6C4CF1]/5 px-3.5 py-1.5 text-xs font-semibold text-[#6C4CF1]">
-            <Sparkles size={13} /> Student Profile
+      <div className="rounded-[28px] border border-[#ECEBFF] bg-white p-5 shadow-[0_18px_50px_rgba(16,18,37,0.055)]">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#6C4CF1]/15 bg-[#6C4CF1]/5 px-3 py-1.5 text-xs font-semibold text-[#6C4CF1]">
+              <Sparkles size={13} /> Student Profile
+            </div>
+            <h2 className="text-3xl font-bold tracking-tight text-[#111827]">My Profile</h2>
+            <p className="mt-1 text-sm text-[#6B7280]">
+              {editing ? "Edit your details and save when ready." : "Manage your academic identity, contact details, links, skills, and interests."}
+            </p>
           </div>
-          <h2 className="text-[32px] font-bold tracking-tight text-[#111827]">My Profile</h2>
-          <p className="mt-2 text-sm text-[#6B7280]">
-            {editing ? "Edit your profile details below. Changes are saved to the server when you click Save." : "Manage your personal, academic, placement, skills, links, and parent information."}
-          </p>
-        </div>
-        <div className="flex gap-3">
-          {editing ? (
-            <>
-              <button onClick={cancelEdit}
-                className="rounded-xl border border-[#E8ECF1] px-5 py-2.5 text-sm font-semibold text-[#6B7280] transition hover:border-[#EF4444]/30 hover:text-[#EF4444]">
-                Cancel
-              </button>
-              <button onClick={handleSave} disabled={saving || isUpdating || !hasChanges}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#6C4CF1]/25 transition hover:shadow-xl disabled:opacity-60">
-                {saving || isUpdating ? (
-                  <><Loader2 size={15} className="animate-spin" /> Saving...</>
-                ) : (
-                  <><Save size={15} /> Save Changes</>
-                )}
-              </button>
-            </>
-          ) : (
-            <button onClick={startEdit}
-              className="flex items-center gap-2 rounded-xl border border-[#E8ECF1] px-5 py-2.5 text-sm font-semibold text-[#6B7280] transition hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1]">
-              <Edit3 size={15} /> Edit Profile
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Unsaved warning */}
       {hasUnsaved && (
         <div className="flex items-center gap-3 rounded-2xl border border-[#F59E0B]/30 bg-[#FEF3C7] px-5 py-3 text-sm font-semibold text-[#F59E0B]">
           <Loader2 size={17} className="animate-spin" /> You have unsaved changes. Auto-save draft is active.
         </div>
       )}
 
-      {/* Profile Completion */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[#6C4CF1]">PROFILE COMPLETION</p>
-            <h3 className="mt-1 text-xl font-bold text-[#111827]">{completion.percent}% Complete</h3>
-          </div>
-          <div className="relative h-20 w-20">
-            <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15.5" fill="none" stroke="#F3F4F6" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.5" fill="none" stroke="#6C4CF1" strokeWidth="3" strokeLinecap="round"
-                strokeDasharray={`${completion.percent * 0.97} 100`} />
-            </svg>
-            <span className="absolute inset-0 grid place-items-center text-lg font-bold text-[#6C4CF1]">{completion.percent}%</span>
-          </div>
-        </div>
-        {completion.missing.length > 0 && (
-          <div className="mt-4 rounded-xl bg-[#FEF3C7] p-3">
-            <p className="text-xs font-semibold text-[#F59E0B] mb-2">Missing Information</p>
-            <div className="flex flex-wrap gap-2">
-              {completion.missing.map((m) => (
-                <span key={m} className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-medium text-[#F59E0B]">{m}</span>
-              ))}
-            </div>
-          </div>
-        )}
-        {completion.percent < 50 && (
-          <p className="mt-3 text-xs text-[#F59E0B] font-medium">Complete your profile to unlock accurate AI insights.</p>
-        )}
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-[1fr_2fr]">
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Photo Card */}
-          <Card className="p-6 text-center">
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="space-y-6">
+          <Card className="rounded-[28px] p-5 text-center shadow-[0_18px_50px_rgba(16,18,37,0.055)]">
             <div className="relative mx-auto mb-4 h-28 w-28">
               <Avatar src={p.profile_photo_url} name={user?.full_name} size="xl" rounded="2xl" />
               {editing && (
                 <div className="absolute -bottom-1 -right-1 flex gap-1">
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
-                    className="grid h-9 w-9 place-items-center rounded-xl bg-white border border-[#E8ECF1] text-[#6B7280] shadow-sm hover:text-[#6C4CF1]">
+                    className="grid h-9 w-9 place-items-center rounded-xl border border-[#E8ECF1] bg-white text-[#6B7280] shadow-sm hover:text-[#6C4CF1]">
                     {uploadingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={15} />}
                   </button>
                   {p.profile_photo_url && (
                     <button onClick={removePhoto}
-                      className="grid h-9 w-9 place-items-center rounded-xl bg-white border border-[#E8ECF1] text-[#EF4444] shadow-sm hover:bg-[#FEE2E2]">
+                      className="grid h-9 w-9 place-items-center rounded-xl border border-[#E8ECF1] bg-white text-[#EF4444] shadow-sm hover:bg-[#FEE2E2]">
                       <X size={15} />
                     </button>
                   )}
@@ -1073,39 +1090,88 @@ export function StudentProfilePage() {
               )}
             </div>
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
-            {uploadingPhoto && <p className="text-xs text-[#6C4CF1] mt-2">Uploading...</p>}
             <h3 className="text-xl font-bold text-[#111827]">{user?.full_name}</h3>
-            <p className="text-sm font-medium text-[#6C4CF1]">{p.roll_number}</p>
-            <p className="text-xs text-[#6B7280] mt-1">{user?.email}</p>
-          </Card>
-
-          {/* Quick Stats */}
-          <Card className="p-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6C4CF1]">Quick Stats</p>
-            <div className="space-y-3">
-              {[
-                { label: "CGPA", value: p.cgpa != null ? p.cgpa.toFixed(2) : "—" },
-                { label: "Attendance", value: p.attendance_percentage != null ? `${p.attendance_percentage}%` : "—" },
-                { label: "Placement Readiness", value: p.placement_readiness_score != null ? `${p.placement_readiness_score}%` : "—" },
-                { label: "Resume Score", value: p.resume_score != null ? `${p.resume_score}%` : "—" },
-                { label: "Applications", value: p.applications != null ? String(p.applications) : "—" },
-                { label: "Offers", value: p.offers != null ? String(p.offers) : "—" },
-              ].map((stat) => (
-                <div key={stat.label} className="flex items-center justify-between rounded-lg bg-[#F5F7FA] px-3 py-2">
-                  <span className="text-xs font-medium text-[#6B7280]">{stat.label}</span>
-                  <span className="text-sm font-bold text-[#111827]">{stat.value}</span>
-                </div>
-              ))}
+            <p className="mt-1 text-sm font-semibold text-[#6C4CF1]">{p.roll_number || "Roll number pending"}</p>
+            <p className="mt-1 truncate text-xs text-[#6B7280]">{p.department || "Department not set"}{p.year ? ` • Year ${p.year}` : ""}</p>
+            {editing && <p className="mt-4 text-xs font-medium text-[#8B8FA3]">JPG, PNG or WEBP. Max 2MB.</p>}
+            {uploadingPhoto && <p className="mt-2 text-xs text-[#6C4CF1]">Uploading...</p>}
+            <div className="mt-5 flex flex-col gap-2">
+              {editing ? (
+                <>
+                  <button onClick={handleSave} disabled={saving || isUpdating || !hasChanges}
+                    className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#6C4CF1] px-4 text-sm font-semibold text-white shadow-lg shadow-[#6C4CF1]/20 transition hover:bg-[#5B3FE0] disabled:opacity-60">
+                    {saving || isUpdating ? <><Loader2 size={15} className="animate-spin" /> Saving...</> : <><Save size={15} /> Save Changes</>}
+                  </button>
+                  <button onClick={cancelEdit}
+                    className="h-11 rounded-2xl border border-[#E8ECF1] px-4 text-sm font-semibold text-[#6B7280] transition hover:border-[#EF4444]/30 hover:text-[#EF4444]">
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button onClick={startEdit}
+                  className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#E8ECF1] px-4 text-sm font-semibold text-[#6B7280] transition hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1]">
+                  <Edit3 size={15} /> Edit Profile
+                </button>
+              )}
             </div>
           </Card>
-        </div>
 
-        {/* Main Form */}
-        <div className="space-y-6">
-          {/* ─── SECTION 1: Personal Information ─── */}
-          <Card className="p-6">
-            <SectionHeader icon={<User size={16} />} title="Personal Information" />
-            <div className="grid gap-5 sm:grid-cols-2">
+          <Card className="rounded-[28px] p-5 shadow-[0_18px_50px_rgba(16,18,37,0.055)]">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#6C4CF1]">Completion</p>
+                <h3 className="mt-1 text-xl font-bold text-[#111827]">{completion.percent}% Complete</h3>
+              </div>
+              <div className="relative h-16 w-16">
+                <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="#F3F4F6" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="#6C4CF1" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${completion.percent * 0.97} 100`} />
+                </svg>
+                <span className="absolute inset-0 grid place-items-center text-sm font-bold text-[#6C4CF1]">{completion.percent}%</span>
+              </div>
+            </div>
+            {completion.missing.length > 0 && (
+              <div className="rounded-2xl bg-[#FEF3C7] p-3">
+                <p className="mb-2 text-xs font-semibold text-[#F59E0B]">Missing Information</p>
+                <div className="flex flex-wrap gap-2">
+                  {completion.missing.slice(0, 8).map((m) => (
+                    <span key={m} className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-medium text-[#F59E0B]">{m}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </aside>
+
+        <div className="min-w-0 space-y-5">
+          <div className="overflow-x-auto rounded-[24px] border border-[#ECEBFF] bg-white p-2 shadow-[0_14px_38px_rgba(16,18,37,0.045)] no-scrollbar">
+            <div className="flex min-w-max gap-2">
+              {profileTabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    className={cn(
+                      "inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-semibold transition",
+                      active
+                        ? "bg-[#6C4CF1] text-white shadow-[0_12px_28px_rgba(108,76,241,0.22)]"
+                        : "text-[#6B7280] hover:bg-[#F5F7FA] hover:text-[#111827]",
+                    )}
+                  >
+                    <Icon size={16} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <Card className={cn("rounded-[28px] p-5 shadow-[0_18px_50px_rgba(16,18,37,0.055)]", activeTab !== "personal" && "hidden")}>
+            <SectionHeader icon={<User size={16} />} title="Personal Info" />
+            <div className="grid gap-4 sm:grid-cols-2">
               <TextInput label="Full Name" value={user?.full_name || ""} disabled />
               <TextInput label="University Email" value={user?.email || ""} disabled />
               <TextInput label="Student ID" value={String(p.id)} disabled />
@@ -1113,6 +1179,16 @@ export function StudentProfilePage() {
                 placeholder="e.g. AICOS0001" />
               <TextInput label="Registration Number" value={p.registration_number || ""} editable={editing} onChange={(v) => set("registration_number", v)}
                 placeholder="e.g. 2021CSE001" />
+              <DatePicker label="Date of Birth" value={p.date_of_birth || ""} editable={editing} onChange={(v) => set("date_of_birth", v)}
+                required error={errors.date_of_birth} />
+              <Dropdown label="Gender" value={p.gender || ""} options={GENDERS.map((g) => ({ value: g, label: g }))}
+                editable={editing} onChange={(v) => set("gender", v)} placeholder="Select gender" />
+            </div>
+          </Card>
+
+          <Card className={cn("rounded-[28px] p-5 shadow-[0_18px_50px_rgba(16,18,37,0.055)]", activeTab !== "academic" && "hidden")}>
+            <SectionHeader icon={<GraduationCap size={16} />} title="Academic Info" />
+            <div className="grid gap-4 sm:grid-cols-2">
               <Dropdown label="Department" value={p.department} options={DEPARTMENTS.map((d) => ({ value: d, label: d }))}
                 editable={editing} onChange={(v) => set("department", v)} required searchable placeholder="Select department" error={errors.department} />
               <Dropdown label="Course" value={p.course || ""} options={COURSES.map((c) => ({ value: c, label: c }))}
@@ -1128,21 +1204,6 @@ export function StudentProfilePage() {
               <Dropdown label="Academic Year" value={p.academic_year || CURRENT_ACADEMIC_YEAR}
                 options={ACADEMIC_YEARS.map((y) => ({ value: y, label: y }))}
                 editable={editing} onChange={(v) => set("academic_year", v)} placeholder="Select academic year" />
-              <DatePicker label="Date of Birth" value={p.date_of_birth || ""} editable={editing} onChange={(v) => set("date_of_birth", v)}
-                required error={errors.date_of_birth} />
-              <Dropdown label="Gender" value={p.gender || ""} options={GENDERS.map((g) => ({ value: g, label: g }))}
-                editable={editing} onChange={(v) => set("gender", v)} placeholder="Select gender" />
-              <PhoneInput label="Phone Number" value={p.phone_number || ""} editable={editing} onChange={(v) => set("phone_number", v)} error={errors.phone_number} />
-              <div className="sm:col-span-2">
-                <TextAreaInput label="Address" value={p.address || ""} editable={editing} onChange={(v) => set("address", v)} />
-              </div>
-            </div>
-          </Card>
-
-          {/* ─── SECTION 2: Academic Information ─── */}
-          <Card className="p-6">
-            <SectionHeader icon={<GraduationCap size={16} />} title="Academic Information" />
-            <div className="grid gap-5 sm:grid-cols-3">
               <NumberInput label="CGPA" value={p.cgpa} editable={editing} onChange={(v) => set("cgpa", v)}
                 min={0} max={10} step={0.01} />
               <NumberInput label="Current SGPA" value={p.current_semester_gpa} editable={editing} onChange={(v) => set("current_semester_gpa", v)}
@@ -1158,32 +1219,59 @@ export function StudentProfilePage() {
             </div>
           </Card>
 
-          {/* ─── SECTION 3: Placement Information ─── */}
-          <Card className="p-6">
-            <SectionHeader icon={<BriefcaseBusiness size={16} />} title="Placement Information" />
-            <div className="grid gap-5 sm:grid-cols-3">
-              <NumberInput label="Placement Readiness" value={p.placement_readiness_score} editable={editing} onChange={(v) => set("placement_readiness_score", v)}
-                min={0} max={100} suffix="%" />
-              <NumberInput label="Resume Score" value={p.resume_score} editable={editing} onChange={(v) => set("resume_score", v)}
-                min={0} max={100} suffix="%" />
-              <NumberInput label="Coding Score" value={p.coding_score} editable={editing} onChange={(v) => set("coding_score", v)}
-                min={0} max={100} suffix="%" />
-              <NumberInput label="Communication Score" value={p.communication_score} editable={editing} onChange={(v) => set("communication_score", v)}
-                min={0} max={100} suffix="%" />
-              <NumberInput label="Mock Interview Score" value={p.mock_interview_score} editable={editing} onChange={(v) => set("mock_interview_score", v)}
-                min={0} max={100} suffix="%" />
-              <Dropdown label="Preferred Job Role" value={p.preferred_role || ""}
-                options={PREFERRED_ROLES.map((r) => ({ value: r, label: r }))}
-                editable={editing} onChange={(v) => set("preferred_role", v)} searchable placeholder="Select preferred role" />
-              <TextInput label="Expected Package" value={p.expected_package || ""} editable={editing} onChange={(v) => set("expected_package", v)}
-                placeholder="e.g. 15 LPA" />
+          <Card className={cn("rounded-[28px] p-5 shadow-[0_18px_50px_rgba(16,18,37,0.055)]", activeTab !== "contact" && "hidden")}>
+            <SectionHeader icon={<Phone size={16} />} title="Contact Info" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <PhoneInput label="Phone Number" value={p.phone_number || ""} editable={editing} onChange={(v) => set("phone_number", v)} error={errors.phone_number} />
+              <TextInput label="Parent Name" value={p.parent_name || ""} editable={editing} onChange={(v) => set("parent_name", v)}
+                placeholder="Enter parent/guardian name" required error={errors.parent_name} />
+              <PhoneInput label="Parent Phone" value={p.parent_phone || ""} editable={editing} onChange={(v) => set("parent_phone", v)} error={errors.parent_phone} />
+              <TextInput label="Parent Email" value={p.parent_email || ""} editable={editing} onChange={(v) => set("parent_email", v)}
+                placeholder="parent@email.com" type="email" />
+              <div className="sm:col-span-2">
+                <TextAreaInput label="Address" value={p.address || ""} editable={editing} onChange={(v) => set("address", v)} />
+              </div>
             </div>
           </Card>
 
-          {/* ─── SECTION 4: Skills & Certifications ─── */}
-          <Card className="p-6">
-            <SectionHeader icon={<Code2 size={16} />} title="Skills & Certifications" />
-            <div className="space-y-5">
+          <Card className={cn("rounded-[28px] p-5 shadow-[0_18px_50px_rgba(16,18,37,0.055)]", activeTab !== "social" && "hidden")}>
+            <SectionHeader icon={<ExternalLink size={16} />} title="Social Links" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextInput label="GitHub" value={p.github_url || ""} editable={editing} onChange={(v) => set("github_url", v)}
+                placeholder="https://github.com/username" />
+              <TextInput label="LinkedIn" value={p.linkedin_url || ""} editable={editing} onChange={(v) => set("linkedin_url", v)}
+                placeholder="https://linkedin.com/in/username" />
+              <TextInput label="LeetCode" value={p.leetcode_url || ""} editable={editing} onChange={(v) => set("leetcode_url", v)}
+                placeholder="https://leetcode.com/u/username" />
+              <TextInput label="Portfolio" value={p.portfolio_url || ""} editable={editing} onChange={(v) => set("portfolio_url", v)}
+                placeholder="https://your-portfolio.com" />
+              <TextInput label="LinkedIn Headline" value={p.linkedin_headline || ""} editable={editing} onChange={(v) => set("linkedin_headline", v)}
+                placeholder="Full Stack Developer | React, FastAPI, AI/ML" />
+              <TextInput label="LinkedIn Skills" value={p.linkedin_skills || ""} editable={editing} onChange={(v) => set("linkedin_skills", v)}
+                placeholder="React, FastAPI, Python, AI/ML" />
+              <div className="sm:col-span-2">
+                <TextAreaInput label="LinkedIn About" value={p.linkedin_about || ""} editable={editing} onChange={(v) => set("linkedin_about", v)} />
+              </div>
+              <div className="sm:col-span-2">
+                <FormLabel label="LinkedIn Open To Work" />
+                {editing ? (
+                  <label className="flex items-center gap-3 rounded-xl border border-[#E8ECF1] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#111827]">
+                    <input type="checkbox" checked={!!p.linkedin_open_to_work} onChange={(e) => set("linkedin_open_to_work", e.target.checked)}
+                      className="h-4 w-4 rounded border-[#E8ECF1] accent-[#6C4CF1]" />
+                    Open to work
+                  </label>
+                ) : (
+                  <div className="rounded-xl bg-[#F5F7FA] px-3.5 py-2.5 text-sm font-medium text-[#111827]">
+                    {p.linkedin_open_to_work ? "Yes" : "No"}
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          <Card className={cn("rounded-[28px] p-5 shadow-[0_18px_50px_rgba(16,18,37,0.055)]", activeTab !== "skills" && "hidden")}>
+            <SectionHeader icon={<Code2 size={16} />} title="Skills & Interests" />
+            <div className="grid gap-5 xl:grid-cols-2">
               <div>
                 <p className="mb-3 text-xs font-semibold text-[#6B7280]">SKILLS</p>
                 <MultiSelect
@@ -1193,7 +1281,25 @@ export function StudentProfilePage() {
                   editable={editing}
                 />
               </div>
-              <div className="border-t border-[#E8ECF1] pt-5">
+              <div>
+                <p className="mb-3 text-xs font-semibold text-[#6B7280]">CAREER INTERESTS</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Dropdown label="Preferred Job Role" value={p.preferred_role || ""}
+                    options={PREFERRED_ROLES.map((r) => ({ value: r, label: r }))}
+                    editable={editing} onChange={(v) => set("preferred_role", v)} searchable placeholder="Select preferred role" />
+                  <TextInput label="Expected Package" value={p.expected_package || ""} editable={editing} onChange={(v) => set("expected_package", v)}
+                    placeholder="e.g. 15 LPA" />
+                  <NumberInput label="Placement Readiness" value={p.placement_readiness_score} editable={editing} onChange={(v) => set("placement_readiness_score", v)}
+                    min={0} max={100} suffix="%" />
+                  <NumberInput label="Resume Score" value={p.resume_score} editable={editing} onChange={(v) => set("resume_score", v)}
+                    min={0} max={100} suffix="%" />
+                  <NumberInput label="Coding Score" value={p.coding_score} editable={editing} onChange={(v) => set("coding_score", v)}
+                    min={0} max={100} suffix="%" />
+                  <NumberInput label="Mock Interview Score" value={p.mock_interview_score} editable={editing} onChange={(v) => set("mock_interview_score", v)}
+                    min={0} max={100} suffix="%" />
+                </div>
+              </div>
+              <div className="border-t border-[#E8ECF1] pt-5 xl:col-span-2">
                 <p className="mb-3 text-xs font-semibold text-[#6B7280]">CERTIFICATIONS</p>
                 {editing ? (
                   <CertificationsEditor
@@ -1214,33 +1320,6 @@ export function StudentProfilePage() {
                   </div>
                 )}
               </div>
-            </div>
-          </Card>
-
-          {/* ─── SECTION 5: Social Profiles ─── */}
-          <Card className="p-6">
-            <SectionHeader icon={<ExternalLink size={16} />} title="Social Profiles" />
-            <div className="grid gap-5 sm:grid-cols-2">
-              <TextInput label="GitHub" value={p.github_url || ""} editable={editing} onChange={(v) => set("github_url", v)}
-                placeholder="https://github.com/username" />
-              <TextInput label="LinkedIn" value={p.linkedin_url || ""} editable={editing} onChange={(v) => set("linkedin_url", v)}
-                placeholder="https://linkedin.com/in/username" />
-              <TextInput label="LeetCode" value={p.leetcode_url || ""} editable={editing} onChange={(v) => set("leetcode_url", v)}
-                placeholder="https://leetcode.com/u/username" />
-              <TextInput label="Portfolio" value={p.portfolio_url || ""} editable={editing} onChange={(v) => set("portfolio_url", v)}
-                placeholder="https://your-portfolio.com" />
-            </div>
-          </Card>
-
-          {/* ─── SECTION 6: Parent Information ─── */}
-          <Card className="p-6">
-            <SectionHeader icon={<UserPlus size={16} />} title="Parent / Guardian Information" />
-            <div className="grid gap-5 sm:grid-cols-2">
-              <TextInput label="Parent Name" value={p.parent_name || ""} editable={editing} onChange={(v) => set("parent_name", v)}
-                placeholder="Enter parent/guardian name" required error={errors.parent_name} />
-              <PhoneInput label="Parent Phone" value={p.parent_phone || ""} editable={editing} onChange={(v) => set("parent_phone", v)} error={errors.parent_phone} />
-              <TextInput label="Parent Email" value={p.parent_email || ""} editable={editing} onChange={(v) => set("parent_email", v)}
-                placeholder="parent@email.com" type="email" />
             </div>
           </Card>
         </div>

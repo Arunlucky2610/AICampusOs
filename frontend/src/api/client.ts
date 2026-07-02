@@ -4,7 +4,7 @@ const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const normalizedBaseUrl = rawBaseUrl.replace(/\/$/, "");
 const apiBaseUrl = normalizedBaseUrl.endsWith("/api") ? normalizedBaseUrl : `${normalizedBaseUrl}/api`;
 
-export const api = axios.create({ baseURL: apiBaseUrl });
+export const api = axios.create({ baseURL: apiBaseUrl, timeout: 30000 });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");

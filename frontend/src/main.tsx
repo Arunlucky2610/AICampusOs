@@ -26,8 +26,10 @@ import {
   StudentSubjects, StudentAssignments, StudentTimetable, StudentFacultyFeedback,
 } from "./pages/app/StudentAcademicModules";
 import {
-  StudentMockInterviews, StudentCodingProgress, StudentCompanyEligibility, StudentApplications,
+  StudentCodingProgress, StudentCompanyEligibility, StudentApplications,
 } from "./pages/app/StudentPlacementModules";
+import { AiMockInterview } from "./pages/app/AiMockInterview";
+import { AiTutor } from "./pages/app/AiTutor";
 import { StudentProfilePage } from "./pages/app/StudentProfilePage";
 import { PlacementDashboard } from "./pages/app/PlacementDashboard";
 import { PlacementStudents } from "./pages/app/PlacementStudents";
@@ -79,7 +81,8 @@ const router = createBrowserRouter([
             { path: "student/assignments", element: <ErrorBoundary name="Assignments"><StudentAssignments /></ErrorBoundary> },
             { path: "student/timetable", element: <ErrorBoundary name="Timetable"><StudentTimetable /></ErrorBoundary> },
             { path: "student/faculty-feedback", element: <ErrorBoundary name="FacultyFeedback"><StudentFacultyFeedback /></ErrorBoundary> },
-            { path: "student/mock-interviews", element: <ErrorBoundary name="MockInterviews"><StudentMockInterviews /></ErrorBoundary> },
+            { path: "student/mock-interviews", element: <ErrorBoundary name="MockInterviews"><AiMockInterview /></ErrorBoundary> },
+            { path: "student/ai-tutor", element: <ErrorBoundary name="AiTutor"><AiTutor /></ErrorBoundary> },
             { path: "student/coding-progress", element: <ErrorBoundary name="CodingProgress"><StudentCodingProgress /></ErrorBoundary> },
             { path: "student/company-eligibility", element: <ErrorBoundary name="CompElig"><StudentCompanyEligibility /></ErrorBoundary> },
             { path: "student/applications", element: <ErrorBoundary name="Applications"><StudentApplications /></ErrorBoundary> },

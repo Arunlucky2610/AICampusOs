@@ -1,5 +1,93 @@
+import json
+import logging
+from typing import Optional
+
+import httpx
+
+from app.core.ai_config import get_ai_client_config, validate_ai_configuration
 from app.models.student import Student
 
+logger = logging.getLogger(__name__)
+
+_client: Optional[httpx.Client] = None
+
+
+AI_REQUEST_TIMEOUT = 25.0
+
+
+def _get_client() -> httpx.Client:
+    global _client
+    if _client is None:
+        config = validate_ai_configuration()
+        _client = httpx.Client(
+            base_url=config.base_url,
+            headers={
+                "Authorization": f"Bearer {config.api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=AI_REQUEST_TIMEOUT + 5.0,
+        )
+    return _client
+
+
+def run_ai(system_prompt: str, user_prompt: str) -> dict:
+    config = get_ai_client_config()
+    client = _get_client()
+
+    payload = {
+        "model": config.model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.3,
+        "max_tokens": config.max_tokens,
+    }
+
+    try:
+        response = client.post("/chat/completions", json=payload, timeout=AI_REQUEST_TIMEOUT)
+    except httpx.TimeoutException:
+        logger.error("NVIDIA API timed out after %ss", AI_REQUEST_TIMEOUT)
+        raise RuntimeError(f"NVIDIA API did not respond within {int(AI_REQUEST_TIMEOUT)}s. Please try again.")
+    except httpx.RequestError as exc:
+        logger.error("NVIDIA API request failed: %s", exc)
+        raise RuntimeError(f"NVIDIA API request failed: {exc}")
+
+    if response.status_code == 401:
+        raise RuntimeError("Invalid NVIDIA API key. Check your NVIDIA_API_KEY.")
+    if response.status_code == 404:
+        raise RuntimeError(f"Model '{config.model}' not found or not accessible.")
+    if response.status_code == 429:
+        raise RuntimeError("Rate limited by NVIDIA API. Please wait and try again.")
+    if response.status_code != 200:
+        body = response.text[:500]
+        logger.error("NVIDIA API returned %s: %s", response.status_code, body)
+        raise RuntimeError(f"NVIDIA API error {response.status_code}: {body}")
+
+    result = response.json()
+    choices = result.get("choices", [])
+    if not choices:
+        raise RuntimeError("NVIDIA API returned empty response.")
+
+    content = choices[0].get("message", {}).get("content", "")
+    if not content:
+        raise RuntimeError("NVIDIA API returned empty message content.")
+
+    content = content.strip()
+    if content.startswith("```"):
+        content = content.strip("`")
+        if content.startswith("json"):
+            content = content[4:]
+        content = content.strip()
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        logger.warning("AI response was not valid JSON, wrapping raw content")
+        return {"raw_response": content}
+
+
+# ── Legacy heuristic functions (kept for backward compat with old endpoints) ──
 
 def placement_prediction(student: Student) -> dict:
     score = round((student.cgpa * 7) + (student.attendance_percentage * 0.12) + (student.skill_score * 0.28), 1)

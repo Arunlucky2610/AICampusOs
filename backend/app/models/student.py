@@ -64,6 +64,7 @@ class Student(Base):
     leetcode_url: Mapped[str] = mapped_column(String(500), nullable=True)
     portfolio_url: Mapped[str] = mapped_column(String(500), nullable=True)
     resume_url: Mapped[str] = mapped_column(String(500), nullable=True)
+    resume_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # LinkedIn manual profile fields
     linkedin_headline: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)

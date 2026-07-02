@@ -65,6 +65,7 @@ class StudentProfileRead(BaseModel):
     leetcode_url: str | None = None
     portfolio_url: str | None = None
     resume_url: str | None = None
+    resume_text: str | None = None
     linkedin_headline: str | None = None
     linkedin_about: str | None = None
     linkedin_skills: str | None = None
@@ -154,6 +155,7 @@ class StudentProfileUpdate(BaseModel):
     leetcode_url: str | None = None
     portfolio_url: str | None = None
     resume_url: str | None = None
+    resume_text: str | None = None
     linkedin_headline: str | None = None
     linkedin_about: str | None = None
     linkedin_skills: str | None = None

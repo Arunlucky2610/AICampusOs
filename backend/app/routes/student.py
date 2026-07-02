@@ -36,14 +36,20 @@ from app.services.coding_service import (
     fetch_github_stats,
     fetch_leetcode_stats,
 )
+from app.services.resume_service import extract_text_from_file
 
 router = APIRouter(prefix="/student", tags=["student"])
 
 UPLOAD_DIR = Path("uploads/profile_photos")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+RESUME_UPLOAD_DIR = Path("uploads/resumes")
+RESUME_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+RESUME_ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
+MAX_RESUME_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -285,6 +291,43 @@ def upload_profile_photo(
     db.commit()
 
     return {"profile_photo_url": photo_url}
+
+
+@router.post("/resume/upload")
+def upload_resume(
+    current_user: User = Depends(require_roles([UserRole.STUDENT, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+    resume: UploadFile = File(...),
+):
+    ext = Path(resume.filename).suffix.lower() if resume.filename else ".txt"
+    if ext not in RESUME_ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only PDF, DOCX, TXT files are allowed")
+
+    contents = resume.file.read()
+    if len(contents) > MAX_RESUME_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Max 10MB allowed")
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = RESUME_UPLOAD_DIR / filename
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    try:
+        resume_text = extract_text_from_file(str(filepath))
+    except Exception as exc:
+        filepath.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Failed to extract text from resume: {exc}")
+
+    student = _get_or_create_student(db, current_user)
+    student.resume_text = resume_text
+    student.resume_url = f"/uploads/resumes/{filename}"
+    db.commit()
+
+    return {
+        "resume_url": student.resume_url,
+        "resume_text_length": len(resume_text),
+        "message": "Resume uploaded and text extracted successfully",
+    }
 
 
 def _compute_profile_completion(student: Student) -> float:

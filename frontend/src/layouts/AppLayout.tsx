@@ -39,7 +39,7 @@ const studentNav: NavSection[] = [
       { label: "Skill Gap Analysis", path: "skill-gap", icon: BrainCircuit },
       { label: "Mock Interviews", path: "student/mock-interviews", icon: Users },
       { label: "Coding Progress", path: "student/coding-progress", icon: Code2 },
-      { label: "Career AI", path: "career-assistant", icon: Bot },
+      { label: "AI Tutor", path: "student/ai-tutor", icon: Bot },
       { label: "Company Eligibility", path: "student/company-eligibility", icon: CheckCircle2 },
       { label: "Applications", path: "student/applications", icon: Send },
       { label: "Placement Prediction", path: "placement-prediction", icon: GraduationCap },
@@ -48,7 +48,6 @@ const studentNav: NavSection[] = [
   {
     title: "TOOLS",
     items: [
-      { label: "AI Assistant", path: "career-assistant", icon: Sparkles },
       { label: "Reports", path: "reports", icon: FileBarChart },
       { label: "Notifications", path: "notifications", icon: Bell },
       { label: "Profile", path: "student/profile", icon: UserRound },

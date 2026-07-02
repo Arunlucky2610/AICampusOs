@@ -11,6 +11,7 @@ import {
   AlertTriangle, Sparkles, GraduationCap, RefreshCw,
   ChevronDown, FileUp, MessageSquare, Download, Trash2,
   Search, Copy, Check, ListChecks, TrendingUp, BookMarked,
+  Square, Plus,
 } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { cn } from "../../utils/cn";
@@ -33,9 +34,10 @@ import type {
 } from "../../api/tutor";
 
 type Mode = "ask" | "explain" | "quiz" | "study-plan";
+type TutorData = TutorAskResponse | TutorExplainResponse | TutorQuizResponse | TutorEvaluateQuizResponse | TutorStudyPlanResponse;
 type ChatMessage = {
   id: string; role: "user" | "assistant"; text: string; subject?: string; topic?: string;
-  data?: TutorExplainResponse | TutorQuizResponse | TutorEvaluateQuizResponse | TutorStudyPlanResponse;
+  data?: TutorData | Record<string, any>;
   loading?: boolean; progress?: { pct: number; label: string };
 };
 
@@ -137,8 +139,8 @@ const SkeletonBlock = memo(function SkeletonBlock({ lines = 3 }: { lines?: numbe
   return <div className="space-y-2">{Array.from({length:lines}).map((_,i) => <div key={i} className="h-3 animate-pulse rounded bg-[#E8ECF1]" style={{width:`${70+Math.random()*30}%`}} />)}</div>;
 });
 
-const ChatMessage = memo(function ChatMessage({ msg, onRetry, onSpeak }: {
-  msg: ChatMessage; onRetry?: () => void; onSpeak?: (t: string) => void;
+const ChatMessage = memo(function ChatMessage({ msg, onRetry, onSwitchModel, onSpeak }: {
+  msg: ChatMessage; onRetry?: () => void; onSwitchModel?: () => void; onSpeak?: (t: string) => void;
 }) {
   const isUser = msg.role === "user"; const isLoading = msg.loading;
   return (
@@ -162,9 +164,16 @@ const ChatMessage = memo(function ChatMessage({ msg, onRetry, onSpeak }: {
           ) : (
             <>
               {msg.subject && <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#6C4CF1]"><BookMarked size={10} />{msg.subject}{msg.topic ? ` / ${msg.topic}` : ""}</div>}
-              {msg.data ? <StructuredContent data={msg.data} /> : (
-                <div className="prose prose-sm max-w-none"><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown></div>
-              )}
+              {(() => {
+                const hasData = !!msg.data;
+                const d = msg.data as any;
+                const displayFromData = hasData && (extractDisplayText(d) || d?.questions || d?.plan || d?.explanation || d?.per_question_feedback);
+                return displayFromData ? <StructuredContent data={msg.data!} /> : (
+                  <div className="prose prose-sm max-w-none"><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
+                    {msg.text || (msg.data as any)?.error || "No response available."}
+                  </ReactMarkdown></div>
+                );
+              })()}
             </>
           )}
         </div>
@@ -172,8 +181,13 @@ const ChatMessage = memo(function ChatMessage({ msg, onRetry, onSpeak }: {
           {!isUser && !isLoading && msg.text && !msg.data && onSpeak && (
             <button onClick={() => onSpeak(msg.text)} className="text-[10px] text-[#9CA3AF] hover:text-[#6C4CF1]"><Volume2 size={11} /></button>
           )}
-          {!isUser && !isLoading && onRetry && msg.text.includes("Error") && (
-            <button onClick={onRetry} className="flex items-center gap-1 text-[10px] text-[#EF4444] hover:text-[#DC2626]"><RefreshCw size={10} /> Retry</button>
+          {!isUser && !isLoading && (msg.text?.includes("Error") || msg.text?.includes("error") || msg.data?.error) && (
+            <>
+              <button onClick={onRetry} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-[#EF4444] hover:bg-[#FEE2E2]/50"><RefreshCw size={10} /> Retry</button>
+              {onSwitchModel && (
+                <button onClick={onSwitchModel} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-[#6C4CF1] hover:bg-[#6C4CF1]/10"><RefreshCw size={10} /> Switch Model</button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -181,10 +195,35 @@ const ChatMessage = memo(function ChatMessage({ msg, onRetry, onSpeak }: {
   );
 });
 
+function extractDisplayText(data: any): string | null {
+  if (!data || typeof data !== "object") return data ? String(data) : null;
+  for (const key of ["answer", "explanation", "summary", "content", "response", "raw_response", "markdown"]) {
+    const val = data[key];
+    if (val && typeof val === "string" && val.trim()) return val.trim();
+  }
+  if (data.error && typeof data.error === "string") return null;
+  for (const key of ["examples", "key_points", "next_steps", "related_topics", "suggested_resources", "recommendations", "tips"]) {
+    const arr = data[key];
+    if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === "string") {
+      return arr.map((s: string) => `- ${s}`).join("\n");
+    }
+  }
+  if (data.questions && Array.isArray(data.questions)) {
+    return data.questions.map((q: any) => `**Q${q.id}:** ${q.question}`).join("\n\n");
+  }
+  if (data.plan && Array.isArray(data.plan)) {
+    return data.plan.map((d: any) => `**Day ${d.day}:** ${d.topics?.join(", ") || ""}`).join("\n\n");
+  }
+  return null;
+}
+
 function StructuredContent({ data }: { data: any }) {
-  if (data?.questions) return <QuizView questions={data.questions} />;
-  if (data?.per_question_feedback) return <QuizResultView result={data as TutorEvaluateQuizResponse} />;
-  if (data?.plan) return <StudyPlanView plan={data as TutorStudyPlanResponse} />;
+  const displayText = useMemo(() => extractDisplayText(data), [data]);
+  const errorText = data?.error || null;
+
+  if (data?.questions) return <><QuizView questions={data.questions} />{errorText && <p className="mt-2 text-[10px] text-[#EF4444]">{errorText}</p>}</>;
+  if (data?.per_question_feedback) return <><QuizResultView result={data as TutorEvaluateQuizResponse} />{errorText && <p className="mt-2 text-[10px] text-[#EF4444]">{errorText}</p>}</>;
+  if (data?.plan) return <><StudyPlanView plan={data as TutorStudyPlanResponse} />{errorText && <p className="mt-2 text-[10px] text-[#EF4444]">{errorText}</p>}</>;
   if (data?.explanation) {
     const d = data as TutorExplainResponse;
     return (
@@ -192,11 +231,15 @@ function StructuredContent({ data }: { data: any }) {
         <div className="prose prose-sm max-w-none"><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{d.explanation}</ReactMarkdown></div>
         {d.examples.length > 0 && <Section title="Examples" color="#6C4CF1" items={d.examples} />}
         {d.analogies.length > 0 && <Section title="Analogies" color="#F59E0B" items={d.analogies} />}
-        {d.formulas.length > 0 && <Section title="Formulas" color="#3B82F6" items={d.formulas} code />}
+        {d.formulas.length > 0 && <Section title="Formulas" color="#3B82F6" items={d.formulas} />}
         {d.code_examples.length > 0 && <Section title="Code Examples" color="#22C55E" items={d.code_examples} code />}
         {d.key_takeaways.length > 0 && <Section title="Key Takeaways" color="#111827" items={d.key_takeaways} />}
+        {errorText && <p className="text-[10px] text-[#EF4444]">{errorText}</p>}
       </div>
     );
+  }
+  if (displayText) {
+    return <div className="prose prose-sm max-w-none"><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown></div>;
   }
   return null;
 }
@@ -389,25 +432,21 @@ function HistoryPanel({ history, search, onSearchChange, onResume, onClose }: {
   );
 }
 
-// ─── Progress Cards ───────────────────────────────────────────────────────────
-function ProgressCards({ checklistDone, checklistTotal, quizAvg, daysDone, planDays }: {
-  checklistDone: number; checklistTotal: number; quizAvg: number; daysDone: number; planDays: number;
+// ─── Compact Stats ───────────────────────────────────────────────────────────
+function CompactStats({ items }: {
+  items: { icon: React.ElementType; label: string; value: string; color: string; onClick?: () => void }[];
 }) {
-  const cards = [
-    { icon: ListChecks, label: "Checklist", value: `${checklistDone}/${checklistTotal}`, sub: `${checklistTotal>0?Math.round(checklistDone/checklistTotal*100):0}%`, color: "#6C4CF1" },
-    { icon: Award, label: "Quiz Avg", value: `${quizAvg}%`, sub: quizAvg>=70?"Good":"Needs practice", color: quizAvg>=70?"#22C55E":"#F59E0B" },
-    { icon: CalendarDays, label: "Study Plan", value: `${daysDone}/${planDays}`, sub: `${planDays>0?Math.round(daysDone/planDays*100):0}%`, color: "#3B82F6" },
-    { icon: Star, label: "Streak", value: `${Math.min(checklistDone,7)}`, sub: "day streak", color: "#F59E0B" },
-  ];
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {cards.map(({ icon:Icon, label, value, sub, color }) => (
-        <Card key={label} className="p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F5F7FA]"><Icon size={14} style={{color}} /></div>
-            <div className="min-w-0"><p className="text-[10px] font-medium text-[#6B7280]">{label}</p><p className="text-sm font-bold" style={{color}}>{value} <span className="text-[9px] font-normal text-[#9CA3AF]">{sub}</span></p></div>
-          </div>
-        </Card>
+    <div className="flex flex-wrap items-center gap-1">
+      {items.map(({ icon: Icon, label, value, color, onClick }) => (
+        <button
+          key={label}
+          onClick={onClick}
+          className="flex items-center gap-1 rounded-full border border-[#E8ECF1] bg-white px-2 py-0.5 text-[10px] font-medium text-[#6B7280] hover:shadow-sm transition"
+        >
+          <Icon size={10} style={{ color }} />
+          <span style={{ color }} className="font-semibold tabular-nums">{value}</span>
+        </button>
       ))}
     </div>
   );
@@ -481,6 +520,7 @@ export function AiTutor() {
   const [historySearch, setHistorySearch] = useState("");
   const [weakTopics, setWeakTopics] = useState<string[]>(() => loadJSON<string[]>("tutor_weak_topics", []));
   const [savedNotes, setSavedNotes] = useState<string[]>(() => loadJSON<string[]>("tutor_notes", []));
+  const [showDrawer, setShowDrawer] = useState(false);
   const [checklist, setChecklist] = useState<{id:string;text:string;done:boolean}[]>(() => loadJSON("tutor_checklist", DEFAULT_CHECKLIST.map((t,i) => ({id:`c${i}`,text:t,done:false}))));
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -489,6 +529,10 @@ export function AiTutor() {
   const recognitionRef = useRef<any>(null);
   const speechSynth = typeof window !== "undefined" ? window.speechSynthesis : null;
   const progressTimerRef = useRef<number|null>(null);
+  const lastActionRef = useRef<{ type: string; params: any }>({ type: "", params: {} });
+  const cancelledRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [useFallbackModel, setUseFallbackModel] = useState(false);
 
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessages(prev => { const next = [...prev]; const idx = next.findIndex(m => m.id === msg.id); if (idx >= 0) next[idx] = msg; else next.push(msg); return next; });
@@ -547,12 +591,15 @@ export function AiTutor() {
   }, [addMessage, stopProgressTimer]);
 
   const runWithProgress = useCallback(async (msgId: string, apiCall: () => Promise<any>, onSuccess: (data: any) => Partial<ChatMessage>, onError?: (err: any) => Partial<ChatMessage>) => {
+    cancelledRef.current = false;
     startProgressTimer(msgId); setIsLoading(true); setError(null);
     try {
       const data = await apiCall();
+      if (cancelledRef.current) { cancelledRef.current = false; stopProgressTimer(); setIsLoading(false); return; }
       stopProgressTimer();
       addMessage({ id: msgId, role: "assistant", text: "", loading: false, ...onSuccess(data) } as ChatMessage);
     } catch (err: any) {
+      if (cancelledRef.current) { cancelledRef.current = false; stopProgressTimer(); setIsLoading(false); return; }
       stopProgressTimer();
       const fallback = onError ? onError(err) : { text: `Error: ${err?.response?.data?.detail || "Request failed. Please retry."}` };
       addMessage({ id: msgId, role: "assistant", text: "", loading: false, ...fallback } as ChatMessage);
@@ -563,45 +610,49 @@ export function AiTutor() {
 
   const handleAskDoubt = useCallback(() => {
     if (!question.trim() || !topic.trim()) return;
+    lastActionRef.current = { type: "ask", params: { subject, topic, question } };
     const msgId = `msg-${Date.now()}`;
     addMessage({ id: msgId, role: "user", text: question, subject, topic });
     const resId = `${msgId}-res`;
     addMessage({ id: resId, role: "assistant", text: "", loading: true });
     runWithProgress(resId,
-      () => apiAskDoubt({ subject, topic, question }),
-      (res: TutorAskResponse) => ({ text: `**Answer:** ${res.answer}\n\n**Related Topics:** ${res.related_topics.join(", ")}\n\n**Difficulty Assessment:** ${res.difficulty_assessment}\n\n**Resources:** ${res.suggested_resources.join(", ")}` }),
+      () => apiAskDoubt({ subject, topic, question }, useFallbackModel),
+      (res: TutorAskResponse) => ({ data: res as any }),
     );
-    setQuestion(""); if (inputRef.current) inputRef.current.value = "";
-  }, [question, topic, subject, addMessage, runWithProgress]);
+    setQuestion("");
+  }, [question, topic, subject, addMessage, runWithProgress, useFallbackModel]);
 
   const handleExplain = useCallback(() => {
     if (!topic.trim()) return;
+    lastActionRef.current = { type: "explain", params: { subject, topic, mode: explainMode } };
     const msgId = `msg-${Date.now()}`;
     addMessage({ id: msgId, role: "user", text: `Explain "${topic}" (${explainMode} mode)`, subject, topic });
     runWithProgress(`${msgId}-res`,
-      () => apiExplainTopic({ subject, topic, mode: explainMode }),
+      () => apiExplainTopic({ subject, topic, mode: explainMode }, useFallbackModel),
       (res: TutorExplainResponse) => ({ data: res }),
     );
-  }, [topic, subject, explainMode, addMessage, runWithProgress]);
+  }, [topic, subject, explainMode, addMessage, runWithProgress, useFallbackModel]);
 
   const handleGenerateQuiz = useCallback(() => {
     if (!topic.trim()) return;
+    lastActionRef.current = { type: "quiz", params: { subject, topic, quizCount, quizDifficulty } };
     const msgId = `msg-${Date.now()}`;
     addMessage({ id: msgId, role: "user", text: `Quiz on "${topic}" (${quizCount} questions, ${quizDifficulty})`, subject, topic });
     runWithProgress(`${msgId}-res`,
-      () => apiGenerateQuiz({ subject, topic, question_count: quizCount, difficulty: quizDifficulty }),
+      () => apiGenerateQuiz({ subject, topic, question_count: quizCount, difficulty: quizDifficulty }, useFallbackModel),
       (res: TutorQuizResponse) => ({ data: res }),
     );
-  }, [topic, subject, quizCount, quizDifficulty, addMessage, runWithProgress]);
+  }, [topic, subject, quizCount, quizDifficulty, addMessage, runWithProgress, useFallbackModel]);
 
   const handleStudyPlan = useCallback(() => {
+    lastActionRef.current = { type: "study-plan", params: { subject, examDate, durationDays } };
     const msgId = `msg-${Date.now()}`;
     addMessage({ id: msgId, role: "user", text: `Study plan for "${subject}" (${durationDays} days, exam: ${examDate})`, subject });
     runWithProgress(`${msgId}-res`,
-      () => apiCreateStudyPlan({ subject, exam_date: examDate, duration_days: durationDays }),
+      () => apiCreateStudyPlan({ subject, exam_date: examDate, duration_days: durationDays }, useFallbackModel),
       (res: TutorStudyPlanResponse) => ({ data: res }),
     );
-  }, [subject, examDate, durationDays, addMessage, runWithProgress]);
+  }, [subject, examDate, durationDays, addMessage, runWithProgress, useFallbackModel]);
 
   const handleClearChat = useCallback(() => {
     setMessages([]); setError(null);
@@ -616,6 +667,73 @@ export function AiTutor() {
     }
     setShowHistory(false);
   }, [addMessage]);
+
+  const handleRetry = useCallback((forceFallback?: boolean) => {
+    const fallback = forceFallback !== undefined ? forceFallback : useFallbackModel;
+    const action = lastActionRef.current;
+    if (!action.type) return;
+    setError(null);
+    setIsLoading(false);
+    switch (action.type) {
+      case "ask": {
+        const p = action.params;
+        const mid = `msg-${Date.now()}`;
+        addMessage({ id: mid, role: "user", text: p.question, subject: p.subject, topic: p.topic });
+        addMessage({ id: `${mid}-res`, role: "assistant", text: "", loading: true });
+        runWithProgress(`${mid}-res`,
+          () => apiAskDoubt({ subject: p.subject, topic: p.topic, question: p.question }, fallback),
+          (res: TutorAskResponse) => ({ data: res as any }),
+        );
+        break;
+      }
+      case "explain": {
+        const p = action.params;
+        const mid = `msg-${Date.now()}`;
+        addMessage({ id: mid, role: "user", text: `Explain "${p.topic}" (${p.mode} mode)`, subject: p.subject, topic: p.topic });
+        runWithProgress(`${mid}-res`,
+          () => apiExplainTopic({ subject: p.subject, topic: p.topic, mode: p.mode }, fallback),
+          (res: TutorExplainResponse) => ({ data: res }),
+        );
+        break;
+      }
+      case "quiz": {
+        const p = action.params;
+        const mid = `msg-${Date.now()}`;
+        addMessage({ id: mid, role: "user", text: `Quiz on "${p.topic}" (${p.quizCount} questions, ${p.quizDifficulty})`, subject: p.subject, topic: p.topic });
+        runWithProgress(`${mid}-res`,
+          () => apiGenerateQuiz({ subject: p.subject, topic: p.topic, question_count: p.quizCount, difficulty: p.quizDifficulty }, fallback),
+          (res: TutorQuizResponse) => ({ data: res }),
+        );
+        break;
+      }
+      case "study-plan": {
+        const p = action.params;
+        const mid = `msg-${Date.now()}`;
+        addMessage({ id: mid, role: "user", text: `Study plan for "${p.subject}" (${p.durationDays} days, exam: ${p.examDate})`, subject: p.subject });
+        runWithProgress(`${mid}-res`,
+          () => apiCreateStudyPlan({ subject: p.subject, exam_date: p.examDate, duration_days: p.durationDays }, fallback),
+          (res: TutorStudyPlanResponse) => ({ data: res }),
+        );
+        break;
+      }
+    }
+  }, [addMessage, runWithProgress, useFallbackModel]);
+
+  const handleSwitchModel = useCallback(() => {
+    setUseFallbackModel(true);
+    handleRetry(true);
+  }, [handleRetry]);
+
+  const handleStopGeneration = useCallback(() => {
+    cancelledRef.current = true;
+    stopProgressTimer();
+    setIsLoading(false);
+  }, [stopProgressTimer]);
+
+  const autoResizeTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 150)}px`; }
+  }, []);
 
   const handleToggleChecklist = useCallback((id: string) => {
     setChecklist(p => { const n = p.map(c => c.id===id?{...c,done:!c.done}:c); saveJSON("tutor_checklist", n); return n; });
@@ -633,13 +751,19 @@ export function AiTutor() {
     a.click(); URL.revokeObjectURL(url);
   }, [savedNotes]);
 
-  const stats = useMemo(() => ({
-    checklistDone: checklist.filter(c => c.done).length,
-    checklistTotal: checklist.length,
-    quizAvg: messages.filter(m => m.data && "percentage" in m.data).reduce((acc, m) => acc + ((m.data as any).percentage || 0), 0) / Math.max(messages.filter(m => m.data && "percentage" in m.data).length, 1),
-    daysDone: savedNotes.filter(n => n.startsWith("Day")).length,
-    planDays: savedNotes.filter(n => n.startsWith("Day")).length || 1,
-  }), [checklist, messages, savedNotes]);
+  const stats = useMemo(() => {
+    const planDone = loadJSON<number[]>("tutor_plan_done", []);
+    const planMsg = [...messages].reverse().find(m => m.data && "plan" in m.data);
+    const quizMsgs = messages.filter(m => m.data && "percentage" in m.data);
+    return {
+      checklistDone: checklist.filter(c => c.done).length,
+      checklistTotal: checklist.length,
+      quizAvg: Math.round(quizMsgs.reduce((acc, m) => acc + ((m.data as any).percentage || 0), 0) / Math.max(quizMsgs.length, 1)),
+      planDaysDone: planDone.length,
+      planTotalDays: planMsg ? (planMsg.data as any).plan.length : 1,
+      streakNum: Math.min(checklist.filter(c => c.done).length, 7),
+    };
+  }, [checklist, messages]);
 
   const quickActions = [
     { mode: "ask" as Mode, label: "Ask a Doubt", icon: MessageSquare, desc: "Get clear explanations" },
@@ -687,7 +811,7 @@ export function AiTutor() {
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? <EmptyState quickActions={quickActions} /> : (
               <div className="mx-auto max-w-3xl space-y-4">
-                {messages.map(msg => <ChatMessage key={msg.id} msg={msg} onRetry={() => {}} onSpeak={speakText} />)}
+                {messages.map(msg => <ChatMessage key={msg.id} msg={msg} onRetry={handleRetry} onSwitchModel={handleSwitchModel} onSpeak={speakText} />)}
               </div>
             )}
             <div ref={chatEndRef} />
@@ -700,116 +824,238 @@ export function AiTutor() {
             )}
           </div>
 
-          {/* Progress Cards + Side Panels (Desktop: 3-column footer) */}
+          {/* Compact Stats + Collapsible Drawer */}
           {(messages.length > 0 || isLoading) && (
-            <div className="shrink-0 border-t border-[#E8ECF1] bg-white/80 px-4 py-2">
-              <div className="mx-auto max-w-3xl grid grid-cols-1 md:grid-cols-3 gap-2">
-                <ProgressCards checklistDone={stats.checklistDone} checklistTotal={stats.checklistTotal} quizAvg={Math.round(stats.quizAvg)} daysDone={stats.daysDone} planDays={Math.max(stats.planDays, 1)} />
-                <Card className="p-3"><h4 className="mb-1.5 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Daily Checklist</h4><DailyChecklist items={checklist} onToggle={handleToggleChecklist} onAdd={handleAddChecklist} /></Card>
-                <Card className="p-3">
-                  <div className="flex items-center justify-between mb-1.5"><h4 className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Saved Notes</h4><button onClick={handleDownloadNotes} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] text-[#6C4CF1] hover:bg-[#F5F7FA]"><Download size={10} /> Export</button></div>
-                  {savedNotes.length === 0 ? <p className="text-xs text-[#9CA3AF] text-center py-2">Save quiz results or notes here.</p> : (
-                    <div className="max-h-24 space-y-1 overflow-y-auto">{savedNotes.map((n,i) => <p key={i} className="truncate text-[11px] text-[#374151]">{n}</p>)}</div>
+            <div className="shrink-0 border-t border-[#E8ECF1] bg-white/80 px-4 py-1.5">
+              <div className="mx-auto max-w-3xl space-y-1">
+                <CompactStats items={[
+                  { icon: ListChecks, label: "Checklist", value: `${stats.checklistDone}/${stats.checklistTotal}`, color: "#6C4CF1", onClick: () => setShowDrawer(!showDrawer) },
+                  { icon: Award, label: "Quiz Avg", value: `${stats.quizAvg}%`, color: stats.quizAvg >= 70 ? "#22C55E" : "#F59E0B" },
+                  { icon: CalendarDays, label: "Study Plan", value: `${stats.planDaysDone}/${stats.planTotalDays}`, color: "#3B82F6" },
+                  { icon: Star, label: "Streak", value: `${stats.streakNum} day`, color: "#F59E0B" },
+                  { icon: Bookmark, label: "Notes", value: "Save", color: "#EC4899", onClick: () => setShowDrawer(!showDrawer) },
+                  { icon: CheckCircle2, label: "Tasks", value: "Today", color: "#22C55E", onClick: () => setShowDrawer(!showDrawer) },
+                ]} />
+                <AnimatePresence>
+                  {showDrawer && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                        <div className="rounded-lg border border-[#E8ECF1] bg-white p-2.5">
+                          <h4 className="mb-1 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Daily Checklist</h4>
+                          <DailyChecklist items={checklist} onToggle={handleToggleChecklist} onAdd={handleAddChecklist} />
+                        </div>
+                        <div className="rounded-lg border border-[#E8ECF1] bg-white p-2.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Saved Notes</h4>
+                            <button onClick={handleDownloadNotes} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] text-[#6C4CF1] hover:bg-[#F5F7FA]"><Download size={10} /> Export</button>
+                          </div>
+                          {savedNotes.length === 0 ? (
+                            <p className="text-xs text-[#9CA3AF] text-center py-2">Save quiz results or notes here.</p>
+                          ) : (
+                            <div className="max-h-32 space-y-1 overflow-y-auto">{savedNotes.map((n,i) => <p key={i} className="truncate text-[11px] text-[#374151]">{n}</p>)}</div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
-                </Card>
+                </AnimatePresence>
               </div>
             </div>
           )}
 
-          {/* Input Area */}
-          <div className="shrink-0 border-t border-[#E8ECF1] bg-white px-4 py-3">
-            <div className="mx-auto max-w-3xl space-y-2">
-              {/* Mode Selector */}
-              <div className="flex flex-wrap gap-1.5">
-                {(Object.entries(modeConfig) as [Mode, {label:string;icon:React.ElementType}][]).map(([mode, {label,icon:Icon}]) => (
-                  <button key={mode} onClick={() => setActiveMode(mode)}
-                    className={cn("flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition", activeMode===mode ? "bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] text-white shadow" : "bg-[#F5F7FA] text-[#6B7280] hover:bg-[#E8ECF1]")}>
-                    <Icon size={13} /> {label}
-                  </button>
-                ))}
+          {/* Premium AI Composer */}
+          <div className="sticky bottom-0 shrink-0 px-4 pt-2 pb-3 bg-gradient-to-t from-white via-white/95 to-transparent">
+            <div className="mx-auto max-w-3xl">
+              {/* Subject pill + segmented tabs row */}
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 rounded-full bg-[#6C4CF1]/10 px-2.5 py-1">
+                    <BookMarked size={10} className="text-[#6C4CF1]" />
+                    <select value={subject} onChange={e => setSubject(e.target.value)}
+                      className="bg-transparent text-[10px] font-medium text-[#6C4CF1] outline-none cursor-pointer appearance-none pr-1">
+                      {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <ChevronDown size={8} className="text-[#6C4CF1]" />
+                  </div>
+                  {activeMode === "explain" && (
+                    <div className="flex rounded-md border border-[#E8ECF1] overflow-hidden">
+                      <button onClick={() => setExplainMode("simple")}
+                        className={cn("px-2 py-0.5 text-[10px] font-medium transition", explainMode==="simple"?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280] hover:bg-[#F5F7FA]")}>Simple</button>
+                      <button onClick={() => setExplainMode("advanced")}
+                        className={cn("px-2 py-0.5 text-[10px] font-medium transition", explainMode==="advanced"?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280] hover:bg-[#F5F7FA]")}>Advanced</button>
+                    </div>
+                  )}
+                  {activeMode === "quiz" && (
+                    <div className="flex items-center gap-1">
+                      <select value={quizCount} onChange={e => setQuizCount(Number(e.target.value))}
+                        className="rounded-md border border-[#E8ECF1] px-1.5 py-0.5 text-[10px] outline-none bg-white text-[#6B7280]">{[3,5,10,15,20].map(n => <option key={n} value={n}>{n}</option>)}</select>
+                      <select value={quizDifficulty} onChange={e => setQuizDifficulty(e.target.value)}
+                        className="rounded-md border border-[#E8ECF1] px-1.5 py-0.5 text-[10px] outline-none bg-white text-[#6B7280]">{["easy","medium","hard"].map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}</select>
+                    </div>
+                  )}
+                  {activeMode === "study-plan" && (
+                    <div className="flex items-center gap-1">
+                      <div className="relative">
+                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[8px] text-[#6B7280]">Exam:</span>
+                        <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)}
+                          className="w-28 rounded-md border border-[#E8ECF1] pl-8 pr-1.5 py-0.5 text-[10px] outline-none bg-white text-[#6B7280]" />
+                      </div>
+                      <div className="flex rounded-md border border-[#E8ECF1] overflow-hidden">
+                        <button onClick={() => setDurationDays(7)}
+                          className={cn("px-2 py-0.5 text-[10px] font-medium transition", durationDays===7?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280] hover:bg-[#F5F7FA]")}>7d</button>
+                        <button onClick={() => setDurationDays(30)}
+                          className={cn("px-2 py-0.5 text-[10px] font-medium transition", durationDays===30?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280] hover:bg-[#F5F7FA]")}>30d</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  {messages.length > 0 && (
+                    <button onClick={handleClearChat}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] text-[#6B7280] hover:bg-[#F5F7FA] hover:text-[#EF4444] transition">
+                      <Plus size={12} /> New Chat
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Ask Doubt */}
-              {activeMode === "ask" && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <select value={subject} onChange={e => setSubject(e.target.value)} className="w-1/3 rounded-lg border border-[#E8ECF1] px-2.5 py-2 text-xs outline-none focus:border-[#6C4CF1] bg-white">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                    <input ref={inputRef} value={topic} onChange={e => setTopic(e.target.value)} placeholder="Topic (e.g. Sorting Algorithms)" className="flex-1 rounded-lg border border-[#E8ECF1] px-3 py-2 text-xs outline-none focus:border-[#6C4CF1]" />
-                  </div>
-                  <div className="flex gap-2">
-                    <input value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={e => {if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleAskDoubt();}}} placeholder="Type your doubt here..." className="flex-1 rounded-lg border border-[#E8ECF1] px-3 py-2 text-xs outline-none focus:border-[#6C4CF1]" />
-                    <button onClick={toggleMic} className={cn("flex h-9 w-9 items-center justify-center rounded-lg border transition", isListening ? "border-[#EF4444] bg-[#FEE2E2] text-[#EF4444]" : "border-[#E8ECF1] text-[#6B7280] hover:border-[#6C4CF1]/30")}>
-                      {isListening ? <MicOff size={14} /> : <Mic size={14} />}
+              {/* Segmented mode tabs */}
+              <div className="mb-2">
+                <div className="inline-flex rounded-xl bg-[#F5F7FA] p-0.5 border border-[#E8ECF1]">
+                  {(Object.entries(modeConfig) as [Mode, {label:string;icon:React.ElementType}][]).map(([mode, {label,icon:Icon}]) => (
+                    <button key={mode} onClick={() => setActiveMode(mode)}
+                      className={cn("flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all",
+                        activeMode===mode ? "bg-white text-[#111827] shadow-sm" : "text-[#6B7280] hover:text-[#374151]")}>
+                      <Icon size={13} />
+                      <span className="hidden sm:inline">{label}</span>
                     </button>
-                    <button onClick={handleAskDoubt} disabled={!question.trim()||!topic.trim()||isLoading}
-                      className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] px-4 py-2 text-xs font-bold text-white shadow disabled:opacity-50">
-                      {isLoading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Ask
-                    </button>
-                  </div>
+                  ))}
                 </div>
+              </div>
+
+              {/* Suggested prompt chips (only when no messages) */}
+              {messages.length === 0 && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex flex-wrap gap-1">
+                  {["Explain Simply","Give Real-Life Example","Interview Questions","MCQ Quiz","Coding Example","Practice Problems","Revision Notes"].map(p => {
+                    const iconMap: Record<string, React.ElementType> = {
+                      "Explain Simply": Lightbulb, "Give Real-Life Example": Target,
+                      "Interview Questions": MessageSquare, "MCQ Quiz": ClipboardList,
+                      "Coding Example": BookOpen, "Practice Problems": BarChart3, "Revision Notes": BookMarked,
+                    };
+                    const Icon = iconMap[p] || Sparkles;
+                    const isActiveMode = activeMode === "ask" ? p : activeMode === "explain" ? p === "Explain Simply" : activeMode === "quiz" ? p === "MCQ Quiz" : false;
+                    if (activeMode === "study-plan") return null;
+                    return (
+                      <button key={p} onClick={() => {
+                        if (activeMode === "ask") setQuestion(p);
+                        else setTopic(p);
+                        textareaRef.current?.focus();
+                      }}
+                        className="flex items-center gap-1 rounded-full border border-[#E8ECF1] bg-white px-2.5 py-1 text-[10px] font-medium text-[#6B7280] hover:border-[#6C4CF1]/30 hover:text-[#6C4CF1] hover:shadow-sm transition-all">
+                        <Icon size={10} className="shrink-0" /> {p}
+                      </button>
+                    );
+                  })}
+                </motion.div>
               )}
 
-              {/* Explain */}
-              {activeMode === "explain" && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <select value={subject} onChange={e => setSubject(e.target.value)} className="w-1/3 rounded-lg border border-[#E8ECF1] px-2.5 py-2 text-xs outline-none focus:border-[#6C4CF1] bg-white">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                    <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Topic to explain" className="flex-1 rounded-lg border border-[#E8ECF1] px-3 py-2 text-xs outline-none focus:border-[#6C4CF1]" />
+              {/* Loading indicator */}
+              {isLoading && (
+                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2 rounded-lg bg-[#6C4CF1]/5 px-3 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Brain size={12} className="animate-pulse text-[#6C4CF1]" />
+                    <span className="text-[11px] font-medium text-[#6C4CF1]">AI is thinking</span>
+                    <span className="inline-flex gap-0.5">
+                      {[0,1,2].map(i => <span key={i} className="h-1 w-1 animate-bounce rounded-full bg-[#6C4CF1]" style={{animationDelay:`${i*200}ms`}} />)}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex rounded-lg border border-[#E8ECF1] overflow-hidden">
-                      <button onClick={() => setExplainMode("simple")} className={cn("px-3 py-1.5 text-xs font-medium transition", explainMode==="simple"?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280]")}>Simple</button>
-                      <button onClick={() => setExplainMode("advanced")} className={cn("px-3 py-1.5 text-xs font-medium transition", explainMode==="advanced"?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280]")}>Advanced</button>
-                    </div>
-                    <button onClick={handleExplain} disabled={!topic.trim()||isLoading} className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] px-4 py-2 text-xs font-bold text-white shadow disabled:opacity-50">
-                      {isLoading ? <Loader2 size={13} className="animate-spin" /> : <Lightbulb size={13} />} Explain
-                    </button>
-                  </div>
-                </div>
+                </motion.div>
               )}
 
-              {/* Quiz */}
-              {activeMode === "quiz" && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <select value={subject} onChange={e => setSubject(e.target.value)} className="w-1/5 rounded-lg border border-[#E8ECF1] px-2.5 py-2 text-xs outline-none focus:border-[#6C4CF1] bg-white">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                    <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Topic for quiz" className="flex-1 rounded-lg border border-[#E8ECF1] px-3 py-2 text-xs outline-none focus:border-[#6C4CF1]" />
-                    <select value={quizCount} onChange={e => setQuizCount(Number(e.target.value))} className="w-16 rounded-lg border border-[#E8ECF1] px-2 py-2 text-xs outline-none focus:border-[#6C4CF1] bg-white">{[3,5,10,15,20].map(n => <option key={n} value={n}>{n}</option>)}</select>
-                    <select value={quizDifficulty} onChange={e => setQuizDifficulty(e.target.value)} className="w-20 rounded-lg border border-[#E8ECF1] px-2 py-2 text-xs outline-none focus:border-[#6C4CF1] bg-white">{["easy","medium","hard"].map(d => <option key={d} value={d}>{d}</option>)}</select>
-                    <button onClick={handleGenerateQuiz} disabled={!topic.trim()||isLoading} className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] px-4 py-2 text-xs font-bold text-white shadow disabled:opacity-50">
-                      {isLoading ? <Loader2 size={13} className="animate-spin" /> : <ClipboardList size={13} />} Generate
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Glass composer */}
+              <div className={cn(
+                "relative flex items-end gap-1.5 rounded-2xl border bg-white p-2 shadow-lg shadow-[#6C4CF1]/5",
+                "focus-within:border-[#6C4CF1]/40 focus-within:shadow-xl transition-all duration-200",
+                isLoading ? "border-[#6C4CF1]/20 bg-[#F9FAFB]" : "border-[#E8ECF1]"
+              )}>
+                {/* Attachment */}
+                <button disabled={isLoading}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#9CA3AF] hover:bg-[#F5F7FA] hover:text-[#6C4CF1] transition disabled:opacity-30">
+                  <FileUp size={16} />
+                </button>
 
-              {/* Study Plan */}
-              {activeMode === "study-plan" && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <select value={subject} onChange={e => setSubject(e.target.value)} className="w-1/5 rounded-lg border border-[#E8ECF1] px-2.5 py-2 text-xs outline-none focus:border-[#6C4CF1] bg-white">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                    <div className="relative flex-1">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#6B7280]">Exam:</span>
-                      <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} className="w-full rounded-lg border border-[#E8ECF1] pl-12 pr-3 py-2 text-xs outline-none focus:border-[#6C4CF1]" />
-                    </div>
-                    <div className="flex rounded-lg border border-[#E8ECF1] overflow-hidden">
-                      <button onClick={() => setDurationDays(7)} className={cn("px-3 py-2 text-xs font-medium transition", durationDays===7?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280]")}>7 Days</button>
-                      <button onClick={() => setDurationDays(30)} className={cn("px-3 py-2 text-xs font-medium transition", durationDays===30?"bg-[#6C4CF1] text-white":"bg-white text-[#6B7280]")}>30 Days</button>
-                    </div>
-                    <button onClick={handleStudyPlan} disabled={isLoading} className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] px-4 py-2 text-xs font-bold text-white shadow disabled:opacity-50">
-                      {isLoading ? <Loader2 size={13} className="animate-spin" /> : <CalendarDays size={13} />} Plan
-                    </button>
-                  </div>
-                </div>
-              )}
+                {/* Auto-growing textarea */}
+                <textarea
+                  ref={textareaRef}
+                  value={activeMode === "ask" ? question : topic}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (activeMode === "ask") setQuestion(val);
+                    else setTopic(val);
+                    autoResizeTextarea();
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (isLoading) return;
+                      if (activeMode === "ask") handleAskDoubt();
+                      else if (activeMode === "explain") handleExplain();
+                      else if (activeMode === "quiz") handleGenerateQuiz();
+                      else if (activeMode === "study-plan") handleStudyPlan();
+                    }
+                  }}
+                  placeholder="Ask anything about your subject..."
+                  rows={1}
+                  disabled={isLoading}
+                  className="flex-1 resize-none bg-transparent py-2.5 text-sm text-[#111827] outline-none placeholder:text-[#9CA3AF] disabled:opacity-40 leading-relaxed scrollbar-hide"
+                />
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[10px] text-[#9CA3AF]">
-                  <FileUp size={11} /><span>Upload PDF/Image <span className="italic">(coming soon)</span></span>
+                {/* Right actions */}
+                <div className="flex items-center gap-0.5">
+                  {/* Mic */}
+                  <button onClick={toggleMic} disabled={isLoading}
+                    className={cn("flex h-9 w-9 items-center justify-center rounded-lg transition disabled:opacity-30",
+                      isListening ? "bg-[#FEE2E2] text-[#EF4444]" : "text-[#9CA3AF] hover:bg-[#F5F7FA] hover:text-[#6C4CF1]")}>
+                    {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                  </button>
+
+                  {/* Send / Stop */}
+                  {isLoading ? (
+                    <motion.button
+                      initial={{ scale: 0.8 }}
+                      animate={{ scale: 1 }}
+                      onClick={handleStopGeneration}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-md hover:bg-[#DC2626] transition-colors"
+                      title="Stop generating">
+                      <Square size={14} />
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        if (activeMode === "ask") handleAskDoubt();
+                        else if (activeMode === "explain") handleExplain();
+                        else if (activeMode === "quiz") handleGenerateQuiz();
+                        else if (activeMode === "study-plan") handleStudyPlan();
+                      }}
+                      disabled={(activeMode === "ask" && (!question.trim() || !topic.trim())) ||
+                        ((activeMode === "explain" || activeMode === "quiz") && !topic.trim()) ||
+                        isLoading}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6] text-white shadow-md disabled:opacity-30 transition-shadow hover:shadow-lg"
+                      title={activeMode === "study-plan" ? "Create Study Plan" : "Send message"}>
+                      <Send size={14} />
+                    </motion.button>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-[#9CA3AF]">
-                  <Sparkles size={11} className="text-[#6C4CF1]" /><span>Powered by AI</span>
-                </div>
+              </div>
+
+              {/* Footer text */}
+              <div className="mt-1.5 flex items-center justify-between px-1">
+                <span className="text-[9px] text-[#9CA3AF]">Enter to send &middot; Shift+Enter for new line</span>
+                <span className="flex items-center gap-1 text-[9px] text-[#9CA3AF]">
+                  <Sparkles size={9} className="text-[#6C4CF1]" /> AI Tutor
+                </span>
               </div>
             </div>
           </div>

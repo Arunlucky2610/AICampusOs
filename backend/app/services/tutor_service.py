@@ -7,67 +7,84 @@ from sqlalchemy.orm import Session
 from app.models.student import Student
 from app.models.tutor import TutorChat
 from app.models.user import User
-from app.services.ai_service import run_ai
+from app.services.tutor_ai_service import run_tutor_ai
 
 logger = logging.getLogger(__name__)
 
-ASK_PROMPT = """You are a personal AI tutor for a {year}-year {department} student (CGPA: {cgpa}).
 
-The student has the following subjects with marks:
+def _normalize(result: dict, answer_field: str = "answer", default_answer: str = "") -> dict:
+    normalized = dict(result)
+    raw = normalized.pop("raw_response", None)
+    if raw and isinstance(raw, str):
+        normalized[answer_field] = raw
+    for field in ("answer", "explanation", "summary"):
+        if field not in normalized or not normalized.get(field):
+            normalized[field] = default_answer if field == answer_field else ""
+    for field in ("examples", "key_points", "next_steps"):
+        normalized.setdefault(field, [])
+    normalized.setdefault("error", None)
+    return normalized
+
+
+ASK_PROMPT = """You are a personal AI tutor for a {year}-year {department} student (CGPA: {cgpa}).
 {subjects_summary}
 
-They are studying "{topic}" in "{subject}" and ask:
-"{question}"
+The student asks: "{question}" (topic: "{topic}", subject: "{subject}").
 
-Act like an experienced teacher. Explain the concept clearly, then provide examples, related topics the student should also study, assess the difficulty level relative to their current performance, and suggest resources.
+Teach like an expert mentor. Start from basics and progress to advanced insights.
+Use **markdown** for formatting: headings (`##`), bold, bullet lists, and code blocks (```language...```) for code snippets.
+Include real-world examples and practical applications.
+Suggest follow-up questions the student should explore next.
 
-Return ONLY valid JSON:
+Return valid JSON:
 {{
-  "answer": "Clear, thorough explanation tailored to student level",
-  "examples": ["example1", "example2"],
-  "related_topics": ["topic1", "topic2", "topic3"],
-  "difficulty_assessment": "easy/medium/hard relative to student",
-  "suggested_resources": ["resource1", "resource2"]
+  "answer": "Full markdown explanation covering beginner to advanced with code examples, analogies, and real-world applications. Use markdown formatting.",
+  "examples": ["practical example 1 with explanation", "practical example 2"],
+  "related_topics": ["related topic 1", "related topic 2", "related topic 3"],
+  "difficulty_assessment": "easy / medium / hard",
+  "suggested_resources": ["article or book 1", "online resource 2"]
 }}"""
 
 EXPLAIN_SIMPLE_PROMPT = """You are a personal AI tutor for a {year}-year {department} student (CGPA: {cgpa}).
 
-They want a SIMPLE explanation of "{topic}" in "{subject}". Use NO jargon unless explained. Use analogies from daily life. Keep it beginner-friendly.
+Explain "{topic}" in "{subject}" in SIMPLE terms. Use analogies from daily life, no jargon (define any you use), and keep it beginner-friendly.
+Use **markdown** formatting. Include code examples in markdown code blocks where relevant.
 
-Return ONLY valid JSON:
+Return valid JSON:
 {{
-  "explanation": "Simple explanation with analogies from real life",
+  "explanation": "Complete markdown explanation with analogies, simple examples, and step-by-step breakdown. Use headings and bullet lists.",
   "examples": ["real-world example 1", "real-world example 2"],
-  "analogies": ["analogy 1", "analogy 2"],
+  "analogies": ["analogy 1 explaining the concept", "analogy 2"],
   "formulas": [],
-  "code_examples": [],
+  "code_examples": ["code block showing simple implementation"],
   "key_takeaways": ["takeaway 1", "takeaway 2", "takeaway 3"]
 }}"""
 
 EXPLAIN_ADVANCED_PROMPT = """You are a personal AI tutor for a {year}-year {department} student (CGPA: {cgpa}).
 
-They want an ADVANCED technical explanation of "{topic}" in "{subject}". Provide depth, formulas, code, and design considerations.
+Explain "{topic}" in "{subject}" at an ADVANCED level. Provide deep technical depth, design patterns, edge cases, and production considerations.
+Use **markdown** formatting with headings, code blocks, and bullet lists.
 
-Return ONLY valid JSON:
+Return valid JSON:
 {{
-  "explanation": "Deep technical explanation suitable for advanced learners",
-  "examples": ["technical example 1", "technical example 2"],
-  "analogies": ["analogy 1", "analogy 2"],
+  "explanation": "Deep technical markdown explanation with architecture, design decisions, trade-offs, and advanced code examples. Use headings (##, ###), code blocks (```language), and lists.",
+  "examples": ["advanced example 1 with context", "advanced example 2"],
+  "analogies": ["advanced analogy 1", "analogy 2"],
   "formulas": ["formula or equation 1", "formula or equation 2"],
-  "code_examples": ["code block 1 showing implementation", "code block 2"],
+  "code_examples": ["```language\ncode block with full implementation\n```", "```language\ncode block 2\n```"],
   "key_takeaways": ["takeaway 1", "takeaway 2", "takeaway 3"]
 }}"""
 
 QUIZ_PROMPT = """You are a personal AI tutor for a {year}-year {department} student (CGPA: {cgpa}).
+{subjects_summary}
 
 Generate {count} quiz questions (difficulty: {difficulty}) on "{topic}" in "{subject}".
 
-Each question must have 4 options A/B/C/D, one correct answer, and an explanation.
+Each question must have 4 options A/B/C/D, one correct answer, and a detailed explanation.
+Include practical and application-based questions, not just definitions.
+Mix difficulty levels appropriate for the student's level.
 
-Student's subjects:
-{subjects_summary}
-
-Return ONLY valid JSON:
+Return valid JSON:
 {{
   "questions": [
     {{
@@ -75,8 +92,8 @@ Return ONLY valid JSON:
       "question": "Question text",
       "options": {{"A": "option A", "B": "option B", "C": "option C", "D": "option D"}},
       "correct_answer": "A",
-      "explanation": "Why this is correct and others are wrong",
-      "difficulty": "easy/medium/hard"
+      "explanation": "Why this is correct and common mistakes for other options",
+      "difficulty": "easy / medium / hard"
     }}
   ]
 }}"""
@@ -90,45 +107,45 @@ Quiz Results:
 
 Score: {score}/{total} ({percentage}%)
 
-Analyze what the student got right and wrong. Identify weak areas and strong areas. Give specific recommendations.
+Analyze what the student got right and wrong. Identify weak areas and strong areas. Give specific, actionable recommendations for improvement. Suggest practice problems and study resources.
 
-Return ONLY valid JSON:
+Return valid JSON:
 {{
   "score": {score},
   "total": {total},
   "percentage": {percentage},
   "per_question_feedback": [
-    {{"question_id": 1, "correct": true, "feedback": "Brief feedback on this question"}}
+    {{"question_id": 1, "correct": true, "feedback": "Detailed feedback explaining both correct and incorrect reasoning"}}
   ],
-  "weak_topics": ["topic1", "topic2"],
-  "strong_topics": ["topic1", "topic2"],
-  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"]
+  "weak_topics": ["topic that needs review", "another weak area"],
+  "strong_topics": ["topic the student knows well", "another strength"],
+  "recommendations": ["specific actionable recommendation 1", "recommendation 2 with resource suggestion", "recommendation 3"]
 }}"""
 
 STUDY_PLAN_PROMPT = """You are a personal AI tutor for a {year}-year {department} student (CGPA: {cgpa}).
+{subjects_summary}
 
 Create a {duration}-day study plan for "{subject}" with exam on {exam_date}.
 
-Student's current subjects and marks:
-{subjects_summary}
+Design a realistic, day-by-day plan. Include topic coverage, practice problems, revision days, and mock tests.
+Consider the student's current subjects and workload. Make the plan achievable and effective.
+Include practice problems, mini-projects, and interview-style questions alongside theoretical study.
 
-Design a realistic plan with daily topics, time allocation, activities, and resources. Include exam strategy, prerequisites, and tips.
-
-Return ONLY valid JSON:
+Return valid JSON:
 {{
   "plan": [
     {{
       "day": 1,
-      "topics": ["topic1", "topic2"],
-      "duration_hours": 2.0,
-      "activities": ["Read chapter X", "Solve problems Y", "Review notes"],
-      "resources": ["resource URL or title 1", "resource 2"]
+      "topics": ["specific topic 1", "specific topic 2"],
+      "duration_hours": 2.5,
+      "activities": ["Read and understand concept X", "Solve 5 practice problems", "Review with flashcards", "Write summary notes"],
+      "resources": ["specific book chapter or online resource", "practice problem set link"]
     }}
   ],
-  "total_hours": 14.0,
-  "exam_strategy": "Strategy paragraph",
-  "prerequisites": ["prerequisite 1", "prerequisite 2"],
-  "tips": ["tip 1", "tip 2", "tip 3"]
+  "total_hours": 17.5,
+  "exam_strategy": "Detailed exam strategy covering time management, question selection, and revision approach",
+  "prerequisites": ["knowledge area the student should have before starting", "another prerequisite"],
+  "tips": ["practical tip 1", "motivational tip 2", "exam technique tip 3"]
 }}"""
 
 
@@ -153,7 +170,7 @@ def _get_student_info(db: Session, user: User) -> dict:
     }
 
 
-def ask_doubt(db: Session, user: User, subject: str, topic: str, question: str) -> dict:
+def ask_doubt(db: Session, user: User, subject: str, topic: str, question: str, model_override: str = "default") -> dict:
     info = _get_student_info(db, user)
     subjects_summary = _get_student_academic_summary(db, user)
     prompt = ASK_PROMPT.format(
@@ -162,19 +179,17 @@ def ask_doubt(db: Session, user: User, subject: str, topic: str, question: str) 
         subject=subject, topic=topic, question=question,
     )
     try:
-        result = run_ai(prompt, f"Explain {topic} in {subject}.")
-    except Exception as e:
+        model_param = model_override if model_override != "default" else None
+        result = run_tutor_ai(prompt, f"Explain {topic} in {subject}.", model_override=model_param)
+    except RuntimeError as e:
         logger.warning("Tutor ask failed: %s", e)
-        result = {
-            "answer": "I'm unable to process your question right now. Please try again.",
-            "examples": [], "related_topics": [], "difficulty_assessment": "unknown",
-            "suggested_resources": [],
-        }
+        result = {"answer": "", "explanation": "", "summary": "", "examples": [], "key_points": [], "next_steps": [], "related_topics": [], "difficulty_assessment": "", "suggested_resources": [], "error": str(e)}
+    result = _normalize(result, answer_field="answer", default_answer="")
     _save_chat(db, user.id, "ask", subject, topic, question, result)
     return result
 
 
-def explain_topic(db: Session, user: User, subject: str, topic: str, mode: Literal["simple", "advanced"]) -> dict:
+def explain_topic(db: Session, user: User, subject: str, topic: str, mode: Literal["simple", "advanced"], model_override: str = "default") -> dict:
     info = _get_student_info(db, user)
     prompt_template = EXPLAIN_SIMPLE_PROMPT if mode == "simple" else EXPLAIN_ADVANCED_PROMPT
     prompt = prompt_template.format(
@@ -182,19 +197,17 @@ def explain_topic(db: Session, user: User, subject: str, topic: str, mode: Liter
         subject=subject, topic=topic,
     )
     try:
-        result = run_ai(prompt, f"Explain {topic} ({mode} mode).")
-    except Exception as e:
+        model_param = model_override if model_override != "default" else None
+        result = run_tutor_ai(prompt, f"Explain {topic} ({mode} mode).", model_override=model_param)
+    except RuntimeError as e:
         logger.warning("Tutor explain failed: %s", e)
-        result = {
-            "explanation": f"Explanation unavailable for {topic}. Please try again.",
-            "examples": [], "analogies": [], "formulas": [], "code_examples": [],
-            "key_takeaways": [],
-        }
+        result = {"answer": "", "explanation": "", "summary": "", "examples": [], "key_points": [], "next_steps": [], "analogies": [], "formulas": [], "code_examples": [], "key_takeaways": [], "error": str(e)}
+    result = _normalize(result, answer_field="explanation", default_answer="")
     _save_chat(db, user.id, f"explain_{mode}", subject, topic, None, result)
     return result
 
 
-def generate_quiz(db: Session, user: User, subject: str, topic: str, count: int, difficulty: str) -> dict:
+def generate_quiz(db: Session, user: User, subject: str, topic: str, count: int, difficulty: str, model_override: str = "default") -> dict:
     info = _get_student_info(db, user)
     subjects_summary = _get_student_academic_summary(db, user)
     prompt = QUIZ_PROMPT.format(
@@ -203,15 +216,21 @@ def generate_quiz(db: Session, user: User, subject: str, topic: str, count: int,
         subject=subject, topic=topic, count=count, difficulty=difficulty,
     )
     try:
-        result = run_ai(prompt, f"Generate {count} quiz questions on {topic}.")
-        questions = result.get("questions", [])
-        return {"questions": questions, "total_questions": len(questions)}
-    except Exception as e:
+        model_param = model_override if model_override != "default" else None
+        result = run_tutor_ai(prompt, f"Generate {count} quiz questions on {topic}.", model_override=model_param)
+    except RuntimeError as e:
         logger.warning("Tutor quiz generation failed: %s", e)
-        return {"questions": [], "total_questions": 0}
+        result = {"answer": "", "explanation": "", "summary": "", "examples": [], "key_points": [], "next_steps": [], "questions": [], "total_questions": 0, "error": str(e)}
+    result = _normalize(result, answer_field="summary", default_answer="")
+    questions = result.get("questions", [])
+    if not questions and not result.get("error"):
+        result["error"] = "Failed to parse quiz questions from AI response. The model may have returned non-JSON output."
+    result["questions"] = questions
+    result["total_questions"] = len(questions)
+    return result
 
 
-def evaluate_quiz(db: Session, user: User, subject: str, topic: str, answers: list[dict]) -> dict:
+def evaluate_quiz(db: Session, user: User, subject: str, topic: str, answers: list[dict], model_override: str = "default") -> dict:
     info = _get_student_info(db, user)
     total = len(answers)
     score = sum(1 for a in answers if a.get("selected_answer", "").strip().upper() == a.get("correct_answer", "").strip().upper())
@@ -229,24 +248,30 @@ def evaluate_quiz(db: Session, user: User, subject: str, topic: str, answers: li
         score=score, total=total, percentage=percentage,
     )
     try:
-        result = run_ai(prompt, "Evaluate this quiz.")
-    except Exception as e:
+        model_param = model_override if model_override != "default" else None
+        result = run_tutor_ai(prompt, "Evaluate this quiz.", model_override=model_param)
+    except RuntimeError as e:
         logger.warning("Tutor quiz evaluation failed: %s", e)
         result = {
+            "answer": "", "explanation": "", "summary": "", "examples": [], "key_points": [], "next_steps": [],
             "score": score, "total": total, "percentage": percentage,
             "per_question_feedback": [
                 {"question_id": a.get("question_id", i), "correct": a.get("selected_answer", "").strip().upper() == a.get("correct_answer", "").strip().upper(), "feedback": "Review this topic."}
                 for i, a in enumerate(answers)
             ],
-            "weak_topics": ["Unable to determine"],
-            "strong_topics": ["Unable to determine"],
+            "weak_topics": ["Unable to determine"], "strong_topics": ["Unable to determine"],
             "recommendations": ["Review all questions and practice more."],
+            "error": str(e),
         }
+    result["score"] = result.get("score", score)
+    result["total"] = result.get("total", total)
+    result["percentage"] = result.get("percentage", percentage)
+    result = _normalize(result, answer_field="summary", default_answer="")
     _save_chat(db, user.id, "evaluate_quiz", subject, topic, None, result)
     return result
 
 
-def create_study_plan(db: Session, user: User, subject: str, exam_date: str, duration_days: Literal[7, 30]) -> dict:
+def create_study_plan(db: Session, user: User, subject: str, exam_date: str, duration_days: Literal[7, 30], model_override: str = "default") -> dict:
     info = _get_student_info(db, user)
     subjects_summary = _get_student_academic_summary(db, user)
     prompt = STUDY_PLAN_PROMPT.format(
@@ -255,14 +280,12 @@ def create_study_plan(db: Session, user: User, subject: str, exam_date: str, dur
         subject=subject, exam_date=exam_date, duration=duration_days,
     )
     try:
-        result = run_ai(prompt, f"Create a {duration_days}-day study plan for {subject}.")
-    except Exception as e:
+        model_param = model_override if model_override != "default" else None
+        result = run_tutor_ai(prompt, f"Create a {duration_days}-day study plan for {subject}.", model_override=model_param)
+    except RuntimeError as e:
         logger.warning("Tutor study plan failed: %s", e)
-        result = {
-            "plan": [], "total_hours": 0,
-            "exam_strategy": "Unable to generate plan. Please try again.",
-            "prerequisites": [], "tips": [],
-        }
+        result = {"answer": "", "explanation": "", "summary": "", "examples": [], "key_points": [], "next_steps": [], "plan": [], "total_hours": 0, "exam_strategy": "", "prerequisites": [], "tips": [], "error": str(e)}
+    result = _normalize(result, answer_field="summary", default_answer="")
     _save_chat(db, user.id, "study_plan", subject, topic=None, question=None, answer=result)
     return result
 

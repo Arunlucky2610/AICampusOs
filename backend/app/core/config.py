@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     ai_cache_enabled: bool = True
     ai_cache_ttl_minutes: int = 60
 
+    ai_tutor_api_key: str = ""
+    ai_tutor_base_url: str = "https://integrate.api.nvidia.com/v1"
+    ai_tutor_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    ai_tutor_fallback_model: str = "meta/llama-3.3-70b-instruct"
+    ai_tutor_timeout: int = 90
+    ai_tutor_max_tokens: int = 2048
+    ai_tutor_temperature: float = 0.4
+    ai_tutor_top_p: float = 0.9
+
     mock_interview_max_questions: int = 10
     max_ai_requests_per_day: int = 100
     max_ai_tokens: int = 8192

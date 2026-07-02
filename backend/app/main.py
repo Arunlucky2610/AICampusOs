@@ -110,7 +110,7 @@ app.include_router(parent.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
 app.include_router(ai.router, prefix=settings.api_prefix)
 app.include_router(interview.router, prefix=settings.api_prefix)
-app.include_router(tutor.router, prefix=settings.api_prefix)
+app.include_router(tutor.router)
 
 
 @app.get("/health")

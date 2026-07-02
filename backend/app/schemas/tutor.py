@@ -11,11 +11,16 @@ class TutorAskRequest(BaseModel):
 
 
 class TutorAskResponse(BaseModel):
-    answer: str
-    examples: List[str]
-    related_topics: List[str]
-    difficulty_assessment: str
-    suggested_resources: List[str]
+    answer: str = ""
+    explanation: str = ""
+    summary: str = ""
+    examples: List[str] = []
+    key_points: List[str] = []
+    next_steps: List[str] = []
+    related_topics: List[str] = []
+    difficulty_assessment: str = ""
+    suggested_resources: List[str] = []
+    error: Optional[str] = None
 
 
 class TutorExplainRequest(BaseModel):
@@ -25,12 +30,17 @@ class TutorExplainRequest(BaseModel):
 
 
 class TutorExplainResponse(BaseModel):
-    explanation: str
-    examples: List[str]
-    analogies: List[str]
-    formulas: List[str]
-    code_examples: List[str]
-    key_takeaways: List[str]
+    answer: str = ""
+    explanation: str = ""
+    summary: str = ""
+    examples: List[str] = []
+    key_points: List[str] = []
+    next_steps: List[str] = []
+    analogies: List[str] = []
+    formulas: List[str] = []
+    code_examples: List[str] = []
+    key_takeaways: List[str] = []
+    error: Optional[str] = None
 
 
 class QuizQuestion(BaseModel):
@@ -50,8 +60,15 @@ class TutorQuizRequest(BaseModel):
 
 
 class TutorQuizResponse(BaseModel):
-    questions: List[QuizQuestion]
-    total_questions: int
+    answer: str = ""
+    explanation: str = ""
+    summary: str = ""
+    examples: List[str] = []
+    key_points: List[str] = []
+    next_steps: List[str] = []
+    questions: List[QuizQuestion] = []
+    total_questions: int = 0
+    error: Optional[str] = None
 
 
 class QuizAnswer(BaseModel):
@@ -74,13 +91,20 @@ class PerQuestionFeedback(BaseModel):
 
 
 class TutorEvaluateQuizResponse(BaseModel):
-    score: int
-    total: int
-    percentage: float
-    per_question_feedback: List[PerQuestionFeedback]
-    weak_topics: List[str]
-    strong_topics: List[str]
-    recommendations: List[str]
+    answer: str = ""
+    explanation: str = ""
+    summary: str = ""
+    examples: List[str] = []
+    key_points: List[str] = []
+    next_steps: List[str] = []
+    score: int = 0
+    total: int = 0
+    percentage: float = 0.0
+    per_question_feedback: List[PerQuestionFeedback] = []
+    weak_topics: List[str] = []
+    strong_topics: List[str] = []
+    recommendations: List[str] = []
+    error: Optional[str] = None
 
 
 class StudyPlanDay(BaseModel):
@@ -98,11 +122,18 @@ class TutorStudyPlanRequest(BaseModel):
 
 
 class TutorStudyPlanResponse(BaseModel):
-    plan: List[StudyPlanDay]
-    total_hours: float
-    exam_strategy: str
-    prerequisites: List[str]
-    tips: List[str]
+    answer: str = ""
+    explanation: str = ""
+    summary: str = ""
+    examples: List[str] = []
+    key_points: List[str] = []
+    next_steps: List[str] = []
+    plan: List[StudyPlanDay] = []
+    total_hours: float = 0.0
+    exam_strategy: str = ""
+    prerequisites: List[str] = []
+    tips: List[str] = []
+    error: Optional[str] = None
 
 
 class TutorHistoryItem(BaseModel):

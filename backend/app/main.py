@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
+from app.core.ai_config import validate_ai_configuration
 from app.core.config import get_settings
 from app.core.database import Base, engine
 from app.models import *  # noqa: F403
@@ -68,6 +69,7 @@ def _ensure_columns():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_ai_configuration(settings)
     run_pending_migrations()
     yield
 

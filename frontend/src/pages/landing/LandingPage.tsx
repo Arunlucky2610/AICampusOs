@@ -19,7 +19,6 @@ import {
 import { Link } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
-import { InteractiveParticlesBackground } from "../../components/InteractiveParticlesBackground";
 
 const missionCards = [
   { title: "Student Success", desc: "Personalized AI guidance helps every student achieve their full academic and career potential.", icon: GraduationCap },
@@ -55,8 +54,40 @@ const outcomes = [
   "Data-Driven AI Campus",
 ];
 
+const dashColors = ["#7C3AED", "#2563EB", "#EC4899", "#F97316"];
+
+function seededRandom(seed: number) {
+  const value = Math.sin(seed * 9283.37) * 10000;
+  return value - Math.floor(value);
+}
+
+const heroDashes = Array.from({ length: 100 }, (_, index) => {
+  const zone = seededRandom((index + 1) * 11);
+  let area: "top" | "left" | "right" | "bottom" = "top";
+
+  if (zone < 0.34) {
+    area = "top";
+  } else if (zone < 0.62) {
+    area = "left";
+  } else if (zone < 0.9) {
+    area = "right";
+  } else {
+    area = "bottom";
+  }
+
+  return {
+    area,
+    x: 6 + seededRandom((index + 1) * 17) * 88,
+    y: 8 + seededRandom((index + 1) * 19) * 84,
+    width: 3 + seededRandom((index + 1) * 41) * 3,
+    opacity: 0.15 + seededRandom((index + 1) * 43) * 0.2,
+    rotate: seededRandom((index + 1) * 47) * 180,
+    color: dashColors[Math.floor(seededRandom((index + 1) * 53) * dashColors.length)],
+  };
+});
+
 export function LandingPage() {
-  return <div className="bg-white text-ink">
+  return <div className="relative bg-white text-ink">
     <header className="sticky top-0 z-40 border-b border-line bg-white/85 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-3 font-bold">
@@ -75,14 +106,12 @@ export function LandingPage() {
       </div>
     </header>
 
-    <section className="relative overflow-hidden border-b border-line" style={{ isolation: "isolate" }}>
-      <InteractiveParticlesBackground />
-      <div className="absolute inset-0 z-[1] grid-bg opacity-40 pointer-events-none" />
-      <div className="absolute left-1/2 top-28 z-[1] h-80 w-80 -translate-x-1/2 rounded-full bg-primary/[0.08] blur-3xl pointer-events-none" />
-      <div className="absolute left-1/2 top-32 z-[1] h-72 w-72 -translate-x-1/2 rounded-full bg-secondary/[0.06] blur-3xl pointer-events-none" />
-      <div className="relative z-[2] mx-auto max-w-5xl px-4 py-20 text-center lg:py-28">
+    <section className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-white flex items-center justify-center px-4 py-20">
+      <HeroDashes />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.055] blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-5xl text-center">
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }}>
-          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white px-3 py-1 text-sm font-semibold text-primary shadow-sm">
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-sm font-semibold text-primary shadow-sm backdrop-blur-xl">
             <Sparkles size={16}/> AI-powered operating system for universities
           </div>
           <h1 className="text-6xl font-semibold tracking-normal md:text-8xl">AI CampusOS</h1>
@@ -219,6 +248,39 @@ export function LandingPage() {
 
     <Footer />
   </div>;
+}
+
+function HeroDashes() {
+  const areas = {
+    top: { left: 0, right: 0, top: 0, height: 56 },
+    left: { left: 0, top: 220, bottom: 128, width: 120 },
+    right: { right: 0, top: 220, bottom: 128, width: 120 },
+    bottom: { left: 0, right: 0, bottom: 0, height: 96 },
+  };
+
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 hidden overflow-hidden md:block">
+      {Object.entries(areas).map(([area, style]) => (
+        <div key={area} className="absolute" style={style}>
+          {heroDashes.filter((dash) => dash.area === area).map((dash, index) => (
+            <span
+              key={`${area}-${index}`}
+              className="absolute block rounded-full"
+              style={{
+                left: `${dash.x}%`,
+                top: `${dash.y}%`,
+                width: `${dash.width}px`,
+                height: "1px",
+                opacity: dash.opacity,
+                backgroundColor: dash.color,
+                transform: `translate3d(-50%, -50%, 0) rotate(${dash.rotate}deg)`,
+              }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function Flow() {

@@ -24,6 +24,26 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_tls: bool = True
 
+    ai_provider: str = "nvidia"
+    ai_base_url: str = "https://integrate.api.nvidia.com/v1"
+    ai_model: str = "deepseek-ai/deepseek-v4-pro"
+    nvidia_api_key: str = ""
+
+    github_token: str = ""
+
+    voice_enabled: bool = True
+    stt_provider: str = "nvidia"
+    stt_provider_model: str = ""
+    tts_provider: str = "nvidia"
+    tts_provider_model: str = ""
+
+    ai_cache_enabled: bool = True
+    ai_cache_ttl_minutes: int = 60
+
+    mock_interview_max_questions: int = 10
+    max_ai_requests_per_day: int = 100
+    max_ai_tokens: int = 8192
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

@@ -116,7 +116,7 @@ export async function uploadRecording(
   question_number: number,
   blob: Blob,
   filename: string = "recording.webm"
-): Promise<{ url: string }> {
+): Promise<{ url: string; filename: string }> {
   const formData = new FormData();
   formData.append("file", blob, filename);
   const res = await api.post(

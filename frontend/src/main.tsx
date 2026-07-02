@@ -30,6 +30,7 @@ import {
 } from "./pages/app/StudentPlacementModules";
 import { AiMockInterview } from "./pages/app/AiMockInterview";
 import { AiTutor } from "./pages/app/AiTutor";
+import { StudentResumeAnalyzer } from "./pages/app/StudentResumeAnalyzer";
 import { StudentProfilePage } from "./pages/app/StudentProfilePage";
 import { PlacementDashboard } from "./pages/app/PlacementDashboard";
 import { PlacementStudents } from "./pages/app/PlacementStudents";
@@ -124,7 +125,7 @@ const router = createBrowserRouter([
 
         // === SHARED AI/FEATURE PAGES ===
         { path: "career-assistant", element: <ErrorBoundary name="CareerAI"><AssistantPage /></ErrorBoundary> },
-        { path: "resume-analyzer", element: <ErrorBoundary name="Resume"><AiInfoPage title="Resume Analyzer" endpoint="/ai/resume-analysis" method="post" /></ErrorBoundary> },
+        { path: "resume-analyzer", element: <ErrorBoundary name="Resume"><StudentResumeAnalyzer /></ErrorBoundary> },
         { path: "skill-gap", element: <ErrorBoundary name="SkillGap"><AiInfoPage title="Skill Gap Analysis" endpoint="/ai/skill-gap" /></ErrorBoundary> },
         { path: "placement-prediction", element: <ErrorBoundary name="PlacementPred"><AiInfoPage title="Placement Prediction" endpoint="/ai/placement-prediction" /></ErrorBoundary> },
         { path: "learning-roadmap", element: <ErrorBoundary name="Roadmap"><AiInfoPage title="Learning Roadmap" endpoint="/ai/learning-roadmap" /></ErrorBoundary> },

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 _client: Optional[httpx.Client] = None
 
 
-AI_REQUEST_TIMEOUT = 25.0
+AI_REQUEST_TIMEOUT = 180.0
 
 
 def _get_client() -> httpx.Client:
@@ -34,6 +34,11 @@ def run_ai(system_prompt: str, user_prompt: str) -> dict:
     config = get_ai_client_config()
     client = _get_client()
 
+    logger.info("AI request: model=%s provider=%s base_url=%s max_tokens=%s timeout=%ss",
+                config.model, config.provider, config.base_url, config.max_tokens, AI_REQUEST_TIMEOUT)
+    logger.info("System prompt length=%d chars, User prompt length=%d chars",
+                len(system_prompt), len(user_prompt))
+
     payload = {
         "model": config.model,
         "messages": [
@@ -44,8 +49,10 @@ def run_ai(system_prompt: str, user_prompt: str) -> dict:
         "max_tokens": config.max_tokens,
     }
 
+    logger.info("Sending request to NVIDIA API at %s/chat/completions ...", config.base_url)
     try:
         response = client.post("/chat/completions", json=payload, timeout=AI_REQUEST_TIMEOUT)
+        logger.info("NVIDIA API responded with status=%s in %s", response.status_code, response.elapsed.total_seconds() if hasattr(response, 'elapsed') else '?')
     except httpx.TimeoutException:
         logger.error("NVIDIA API timed out after %ss", AI_REQUEST_TIMEOUT)
         raise RuntimeError(f"NVIDIA API did not respond within {int(AI_REQUEST_TIMEOUT)}s. Please try again.")
@@ -54,10 +61,13 @@ def run_ai(system_prompt: str, user_prompt: str) -> dict:
         raise RuntimeError(f"NVIDIA API request failed: {exc}")
 
     if response.status_code == 401:
+        logger.error("NVIDIA API returned 401 — invalid API key")
         raise RuntimeError("Invalid NVIDIA API key. Check your NVIDIA_API_KEY.")
     if response.status_code == 404:
+        logger.error("NVIDIA API returned 404 — model '%s' not found", config.model)
         raise RuntimeError(f"Model '{config.model}' not found or not accessible.")
     if response.status_code == 429:
+        logger.error("NVIDIA API returned 429 — rate limited")
         raise RuntimeError("Rate limited by NVIDIA API. Please wait and try again.")
     if response.status_code != 200:
         body = response.text[:500]
@@ -67,13 +77,17 @@ def run_ai(system_prompt: str, user_prompt: str) -> dict:
     result = response.json()
     choices = result.get("choices", [])
     if not choices:
+        logger.error("NVIDIA API returned empty choices array: %s", result)
         raise RuntimeError("NVIDIA API returned empty response.")
 
     content = choices[0].get("message", {}).get("content", "")
     if not content:
+        logger.error("NVIDIA API returned empty message content in first choice")
         raise RuntimeError("NVIDIA API returned empty message content.")
 
     content = content.strip()
+    logger.info("AI response received: %d chars", len(content))
+
     if content.startswith("```"):
         content = content.strip("`")
         if content.startswith("json"):
@@ -81,9 +95,11 @@ def run_ai(system_prompt: str, user_prompt: str) -> dict:
         content = content.strip()
 
     try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        logger.warning("AI response was not valid JSON, wrapping raw content")
+        parsed = json.loads(content)
+        logger.info("AI response parsed as JSON with top-level keys: %s", list(parsed.keys()))
+        return parsed
+    except json.JSONDecodeError as exc:
+        logger.warning("AI response was not valid JSON: %s. Raw content (first 200): %s", exc, content[:200])
         return {"raw_response": content}
 
 

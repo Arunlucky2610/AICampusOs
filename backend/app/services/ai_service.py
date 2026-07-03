@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import Optional
 
 import httpx
@@ -12,7 +13,8 @@ logger = logging.getLogger(__name__)
 _client: Optional[httpx.Client] = None
 
 
-AI_REQUEST_TIMEOUT = 180.0
+AI_REQUEST_TIMEOUT = 240.0
+MAX_RETRIES = 2
 
 
 def _get_client() -> httpx.Client:
@@ -49,58 +51,102 @@ def run_ai(system_prompt: str, user_prompt: str) -> dict:
         "max_tokens": config.max_tokens,
     }
 
-    logger.info("Sending request to NVIDIA API at %s/chat/completions ...", config.base_url)
-    try:
-        response = client.post("/chat/completions", json=payload, timeout=AI_REQUEST_TIMEOUT)
-        logger.info("NVIDIA API responded with status=%s in %s", response.status_code, response.elapsed.total_seconds() if hasattr(response, 'elapsed') else '?')
-    except httpx.TimeoutException:
-        logger.error("NVIDIA API timed out after %ss", AI_REQUEST_TIMEOUT)
-        raise RuntimeError(f"NVIDIA API did not respond within {int(AI_REQUEST_TIMEOUT)}s. Please try again.")
-    except httpx.RequestError as exc:
-        logger.error("NVIDIA API request failed: %s", exc)
-        raise RuntimeError(f"NVIDIA API request failed: {exc}")
+    last_error: Optional[str] = None
+    for attempt in range(1 + MAX_RETRIES):
+        if attempt > 0:
+            wait = attempt * 2
+            logger.info("Retry attempt %d/%d after %ds...", attempt, MAX_RETRIES, wait)
+            time.sleep(wait)
 
-    if response.status_code == 401:
-        logger.error("NVIDIA API returned 401 — invalid API key")
-        raise RuntimeError("Invalid NVIDIA API key. Check your NVIDIA_API_KEY.")
-    if response.status_code == 404:
-        logger.error("NVIDIA API returned 404 — model '%s' not found", config.model)
-        raise RuntimeError(f"Model '{config.model}' not found or not accessible.")
-    if response.status_code == 429:
-        logger.error("NVIDIA API returned 429 — rate limited")
-        raise RuntimeError("Rate limited by NVIDIA API. Please wait and try again.")
-    if response.status_code != 200:
-        body = response.text[:500]
-        logger.error("NVIDIA API returned %s: %s", response.status_code, body)
-        raise RuntimeError(f"NVIDIA API error {response.status_code}: {body}")
+        try:
+            logger.info("Sending request to NVIDIA API at %s/chat/completions (attempt %d)...", config.base_url, attempt + 1)
+            response = client.post("/chat/completions", json=payload, timeout=AI_REQUEST_TIMEOUT)
+            elapsed = response.elapsed.total_seconds() if hasattr(response, 'elapsed') else '?'
+            logger.info("NVIDIA API responded with status=%s in %s", response.status_code, elapsed)
+        except httpx.TimeoutException:
+            logger.error("NVIDIA API timed out after %ss (attempt %d)", AI_REQUEST_TIMEOUT, attempt + 1)
+            last_error = "The AI service is temporarily slow. Please try again."
+            continue
+        except httpx.RequestError as exc:
+            logger.error("NVIDIA API request failed (attempt %d): %s", attempt + 1, exc)
+            last_error = "The AI service encountered a network issue. Please try again."
+            continue
 
-    result = response.json()
-    choices = result.get("choices", [])
-    if not choices:
-        logger.error("NVIDIA API returned empty choices array: %s", result)
-        raise RuntimeError("NVIDIA API returned empty response.")
+        if response.status_code == 401:
+            logger.error("NVIDIA API returned 401 — invalid API key")
+            return _fallback_response("AI service configuration error. Please contact support.")
+        if response.status_code == 404:
+            logger.error("NVIDIA API returned 404 — model '%s' not found", config.model)
+            return _fallback_response("AI model not found. Please contact support.")
+        if response.status_code == 429:
+            logger.warning("NVIDIA API returned 429 — rate limited (attempt %d), retrying...", attempt + 1)
+            last_error = "AI service is busy. Please try again."
+            continue
+        if response.status_code == 502 or response.status_code == 503:
+            logger.warning("NVIDIA API returned %s (attempt %d), retrying...", response.status_code, attempt + 1)
+            last_error = "AI service temporarily unavailable. Please try again."
+            continue
+        if response.status_code != 200:
+            body = response.text[:500]
+            logger.error("NVIDIA API returned %s: %s", response.status_code, body)
+            last_error = "AI service returned an unexpected response. Please try again."
+            continue
 
-    content = choices[0].get("message", {}).get("content", "")
-    if not content:
-        logger.error("NVIDIA API returned empty message content in first choice")
-        raise RuntimeError("NVIDIA API returned empty message content.")
+        result = response.json()
+        choices = result.get("choices", [])
+        if not choices:
+            logger.error("NVIDIA API returned empty choices array: %s", result)
+            last_error = "AI service returned an empty response. Please try again."
+            continue
 
-    content = content.strip()
-    logger.info("AI response received: %d chars", len(content))
+        content = choices[0].get("message", {}).get("content", "")
+        if not content:
+            logger.error("NVIDIA API returned empty message content in first choice")
+            last_error = "AI service returned an empty response. Please try again."
+            continue
 
-    if content.startswith("```"):
-        content = content.strip("`")
-        if content.startswith("json"):
-            content = content[4:]
         content = content.strip()
+        logger.info("AI response received: %d chars", len(content))
 
-    try:
-        parsed = json.loads(content)
-        logger.info("AI response parsed as JSON with top-level keys: %s", list(parsed.keys()))
-        return parsed
-    except json.JSONDecodeError as exc:
-        logger.warning("AI response was not valid JSON: %s. Raw content (first 200): %s", exc, content[:200])
-        return {"raw_response": content}
+        if content.startswith("```"):
+            content = content.strip("`")
+            if content.startswith("json"):
+                content = content[4:]
+            content = content.strip()
+
+        try:
+            parsed = json.loads(content)
+            logger.info("AI response parsed as JSON with top-level keys: %s", list(parsed.keys()))
+            return parsed
+        except json.JSONDecodeError as exc:
+            logger.warning("AI response was not valid JSON: %s. Raw content (first 400): %s", exc, content[:400])
+            return _fallback_response("Analysis generated unstructured output. Please try again.")
+
+    logger.error("All %d attempts to NVIDIA API failed. Last error: %s", 1 + MAX_RETRIES, last_error)
+    return _fallback_response(last_error or "AI service temporarily unavailable. Please try again later.")
+
+
+def _fallback_response(message: str) -> dict:
+    return {
+        "atsScore": 0,
+        "resumeStrengthScore": 0,
+        "skillsMatch": 0,
+        "projectImpact": 0,
+        "experienceQuality": 0,
+        "missingKeywords": [],
+        "weakSections": [],
+        "corrections": [],
+        "improvedSummary": "",
+        "strengths": [],
+        "weaknesses": [],
+        "evidenceFromData": [],
+        "exactWeakAreas": [],
+        "improvementPlan": [],
+        "nextActions": [],
+        "missingData": [],
+        "error": message,
+        "error_type": "service_unavailable",
+    }
 
 
 # ── Legacy heuristic functions (kept for backward compat with old endpoints) ──

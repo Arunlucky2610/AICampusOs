@@ -17,6 +17,8 @@ export interface ResumeAnalysisResult {
   improvementPlan: string[];
   nextActions: string[];
   missingData: string[];
+  error?: string;
+  error_type?: string;
 }
 
 export interface UploadResponse {

@@ -90,15 +90,44 @@ def run_ai_module(
         return result
 
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        logger.warning("User error in run_ai_module: %s", exc)
+        return {
+            "atsScore": 0, "resumeStrengthScore": 0, "skillsMatch": 0,
+            "projectImpact": 0, "experienceQuality": 0,
+            "missingKeywords": [], "weakSections": [], "corrections": [],
+            "improvedSummary": "", "strengths": [], "weaknesses": [],
+            "evidenceFromData": [], "exactWeakAreas": [],
+            "improvementPlan": [], "nextActions": [],
+            "missingData": [],
+            "error": str(exc),
+            "error_type": "missing_data",
+        }
     except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+        logger.warning("Runtime error in run_ai_module: %s", exc)
+        return {
+            "atsScore": 0, "resumeStrengthScore": 0, "skillsMatch": 0,
+            "projectImpact": 0, "experienceQuality": 0,
+            "missingKeywords": [], "weakSections": [], "corrections": [],
+            "improvedSummary": "", "strengths": [], "weaknesses": [],
+            "evidenceFromData": [], "exactWeakAreas": [],
+            "improvementPlan": [], "nextActions": [],
+            "missingData": [],
+            "error": "Temporary AI service issue. Please retry.",
+            "error_type": "service_unavailable",
+        }
     except Exception as exc:
         logger.exception("Unexpected error in run_ai_module")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred.",
-        )
+        return {
+            "atsScore": 0, "resumeStrengthScore": 0, "skillsMatch": 0,
+            "projectImpact": 0, "experienceQuality": 0,
+            "missingKeywords": [], "weakSections": [], "corrections": [],
+            "improvedSummary": "", "strengths": [], "weaknesses": [],
+            "evidenceFromData": [], "exactWeakAreas": [],
+            "improvementPlan": [], "nextActions": [],
+            "missingData": [],
+            "error": "Temporary AI service issue. Please retry.",
+            "error_type": "unknown",
+        }
 
 
 @router.get("/latest/{module_type}")

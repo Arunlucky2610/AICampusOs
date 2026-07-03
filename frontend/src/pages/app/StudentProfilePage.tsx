@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -370,7 +371,7 @@ function NumberDropdown({ label, value, options, onChange, editable, required, e
       label={label}
       value={strValue}
       options={dropdownOptions}
-      onChange={(v) => onChange?.(v ? parseInt(v) : null)}
+      onChange={(v) => onChange?.(v !== "" ? parseInt(v) : null)}
       editable={editable}
       required={required}
       error={error}
@@ -524,6 +525,7 @@ function FileUpload({ label, value, onChange, editable, accept, maxSize, hint }:
     } catch {
       alert("Upload failed. Please try again.");
     } finally {
+      if (inputRef.current) inputRef.current.value = "";
       setUploading(false);
     }
   };
@@ -671,7 +673,7 @@ function MultiSelect({ categories, values, onChange, editable }: {
                 {items.map((s, i) => (
                   <span key={i} className="inline-flex items-center gap-1 rounded-lg bg-[#6C4CF1]/10 px-3 py-1.5 text-xs font-medium text-[#6C4CF1] group">
                     {s}
-                    <button type="button" onClick={() => handleRemove(cat.key, i)} className="hover:text-[#EF4444] transition">
+                    <button type="button" onClick={() => handleRemove(cat.key, i)} title="Remove" className="hover:text-[#EF4444] transition">
                       <X size={12} />
                     </button>
                   </span>
@@ -1026,6 +1028,7 @@ export function StudentProfilePage() {
     } catch {
       showToast("Upload failed. Please try again.", "error");
     } finally {
+      e.target.value = "";
       setUploadingPhoto(false);
     }
   };
@@ -1038,11 +1041,14 @@ export function StudentProfilePage() {
   };
 
   const set = (key: string, value: any) => {
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((f) => {
+      const next = { ...f, [key]: value };
+      if (key === "year" && typeof value === "number" && !next.expected_package && !profile.expected_package) {
+        next.expected_package = getDefaultPackage(value);
+      }
+      return next;
+    });
     setErrors((prev) => ({ ...prev, [key]: "" }));
-    if (key === "year" && typeof value === "number" && !form.expected_package && !profile.expected_package) {
-      setForm((f) => ({ ...f, expected_package: getDefaultPackage(value) }));
-    }
   };
 
   return (
@@ -1081,7 +1087,7 @@ export function StudentProfilePage() {
                     {uploadingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={15} />}
                   </button>
                   {p.profile_photo_url && (
-                    <button onClick={removePhoto}
+                    <button type="button" onClick={removePhoto} title="Remove profile photo"
                       className="grid h-9 w-9 place-items-center rounded-xl border border-[#E8ECF1] bg-white text-[#EF4444] shadow-sm hover:bg-[#FEE2E2]">
                       <X size={15} />
                     </button>
@@ -1367,7 +1373,7 @@ function CertificationsEditor({ certifications, onChange }: { certifications: st
             <span key={i} className="inline-flex items-center gap-1 rounded-lg bg-[#8B5CF6]/10 px-3 py-1.5 text-xs font-medium text-[#8B5CF6] group">
               {cert}
               <button type="button" onClick={() => onChange(certifications.filter((_, idx) => idx !== i))}
-                className="hover:text-[#EF4444] transition"><X size={12} /></button>
+                className="hover:text-[#EF4444] transition" title="Remove certification"><X size={12} /></button>
             </span>
           ))
         )}

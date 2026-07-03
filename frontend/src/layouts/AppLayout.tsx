@@ -3,7 +3,7 @@ import {
   BrainCircuit, BriefcaseBusiness, Building2, CalendarDays, CheckCircle2, ChevronDown,
   ChevronLeft, ChevronRight, ClipboardList, Clock, Code2, Command, CreditCard,
   FileBarChart, FileText, GraduationCap, LayoutDashboard, LogOut, Mail, Menu,
-  MessageSquare, Search, Send, Settings, Sparkles, Star, TrendingUp, UserCheck,
+  MessageSquare, Search, Settings, Sparkles, Star, TrendingUp, UserCheck,
   UserRound, Users,
 } from "lucide-react";
 import { useState } from "react";
@@ -41,8 +41,6 @@ const studentNav: NavSection[] = [
       { label: "Coding Progress", path: "student/coding-progress", icon: Code2 },
       { label: "AI Tutor", path: "student/ai-tutor", icon: Bot },
       { label: "Company Eligibility", path: "student/company-eligibility", icon: CheckCircle2 },
-      { label: "Applications", path: "student/applications", icon: Send },
-      { label: "Placement Prediction", path: "placement-prediction", icon: GraduationCap },
     ],
   },
   {
@@ -61,7 +59,6 @@ const otherNav: NavItem[] = [
   { label: "Career AI", path: "career-assistant", icon: Bot },
   { label: "Resume Analyzer", path: "resume-analyzer", icon: BriefcaseBusiness },
   { label: "Skill Gap", path: "skill-gap", icon: BrainCircuit },
-  { label: "Prediction", path: "placement-prediction", icon: GraduationCap },
   { label: "Roadmap", path: "learning-roadmap", icon: FileBarChart },
   { label: "AI Engine", path: "ai-engine", icon: Sparkles },
   { label: "Reports", path: "reports", icon: FileBarChart },

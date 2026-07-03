@@ -8,7 +8,8 @@ import { api } from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { PremiumCard } from "../../components/ui/PremiumCard";
 import { AnimatedCounter } from "../../components/ui/AnimatedCounter";
-import { generateDepartments, generateCompanies, generateDrives, generateSkillAnalytics, generateApplicationPipeline } from "../../components/placement/mockData";
+import { fetchCompanies } from "../../api/company";
+import { generateDepartments, generateDrives, generateSkillAnalytics, generateApplicationPipeline } from "../../components/placement/mockData";
 
 const palette = ["#6C4CF1", "#3B82F6", "#8B5CF6", "#22C55E", "#F59E0B", "#EF4444", "#EC4899"];
 
@@ -110,11 +111,11 @@ export function PlacementDepartments() {
 // =====================================================
 export function PlacementCompanyEligibility() {
   const navigate = useNavigate();
-  const { data: apiData } = useQuery({
+  const { data: companies, isLoading, isError } = useQuery({
     queryKey: ["placement-companies"],
-    queryFn: async () => (await api.get("/placement/companies")).data,
+    queryFn: fetchCompanies,
+    staleTime: 30_000,
   });
-  const companies = apiData || generateCompanies();
 
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
@@ -137,6 +138,12 @@ export function PlacementCompanyEligibility() {
 
       <motion.div variants={itemAnim}>
         <PremiumCard className="overflow-hidden" hover={false}>
+          {isError && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle size={18} className="shrink-0 text-amber-600" />
+              <span>Showing cached company data because live data is unavailable.</span>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
@@ -154,22 +161,26 @@ export function PlacementCompanyEligibility() {
                 </tr>
               </thead>
               <tbody>
-                {companies.map((c: any, i: number) => (
+                {isLoading ? (
+                  <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-muted">Loading companies...</td></tr>
+                ) : !companies?.length ? (
+                  <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-muted">No companies found. Seed the database first.</td></tr>
+                ) : companies.map((c: any) => (
                   <tr key={c.id} className="border-t border-line transition hover:bg-soft/70">
                     <td className="px-4 py-3 font-medium">{c.name}</td>
                     <td className="px-4 py-3 text-muted">{c.role}</td>
                     <td className="px-4 py-3 font-semibold">{c.requiredCgpa}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {c.requiredSkills.map((s: string) => (
+                        {(c.requiredSkills || []).map((s: string) => (
                           <span key={s} className="rounded-md bg-[#6C4CF1]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#6C4CF1]">{s}</span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted">{c.allowedDepartments.join(", ")}</td>
+                    <td className="px-4 py-3 text-xs text-muted">{(c.allowedDepartments || []).join(", ")}</td>
                     <td className="px-4 py-3 text-xs text-muted">{c.backlogPolicy}</td>
                     <td className="px-4 py-3 font-semibold">{c.package}</td>
-                    <td className="px-4 py-3">{c.eligibleStudents}</td>
+                    <td className="px-4 py-3">{c.eligibleStudents ?? "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusBadge(c.status)}`}>
                         {c.status}

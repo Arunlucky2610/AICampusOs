@@ -1,4 +1,5 @@
 from app.models.coding_progress import CodingProgressCache
+from app.models.company import Company
 from app.models.faculty import FacultyProfile
 from app.models.interview import InterviewSession
 from app.models.notification import Notification
@@ -12,6 +13,7 @@ from app.models.user import User, UserRole
 
 __all__ = [
     "CodingProgressCache",
+    "Company",
     "FacultyProfile",
     "InterviewSession",
     "Notification",

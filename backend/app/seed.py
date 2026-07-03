@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models import (
+    Company,
     FacultyProfile,
     Notification,
     ParentProfile,
@@ -61,7 +62,7 @@ def ensure_student_profile(db: Session, user: User) -> Student:
         user_id=user.id,
         roll_number="237R1A66B7",
         registration_number="237R1A66B7",
-        department="Artificial Intelligence & Machine Learning",
+        department="AIML",
         course="B.Tech",
         branch="Computer Science & Engineering",
         section="A",
@@ -133,6 +134,28 @@ def ensure_parent_profile(db: Session, user: User, student: Student) -> None:
         db.add(ParentProfile(user_id=user.id, student_id=student.id, relation="Father"))
 
 
+COMPANIES = [
+    {"name": "Google", "role": "SDE", "required_cgpa": 8.0, "required_skills": ["DSA", "Python", "System Design"], "allowed_departments": ["CSE", "AIML", "AIDS", "ECE"], "backlog_policy": "No active backlogs", "package": "42 LPA", "drive_date": "2026-07-20", "status": "upcoming", "min_resume_score": 70, "min_coding_score": 75, "min_mock_interview_score": 70},
+    {"name": "Microsoft", "role": "SWE", "required_cgpa": 7.5, "required_skills": ["DSA", "C++", "Python"], "allowed_departments": ["CSE", "AIML", "AIDS", "ECE"], "backlog_policy": "Max 1 backlog", "package": "35 LPA", "drive_date": "2026-07-25", "status": "upcoming", "min_resume_score": 65, "min_coding_score": 70, "min_mock_interview_score": 65},
+    {"name": "Amazon", "role": "SDE", "required_cgpa": 7.0, "required_skills": ["DSA", "Java", "System Design"], "allowed_departments": ["CSE", "AIML", "AIDS", "ECE"], "backlog_policy": "Max 2 backlogs", "package": "28 LPA", "drive_date": "2026-08-01", "status": "active", "min_resume_score": 60, "min_coding_score": 65, "min_mock_interview_score": 60},
+    {"name": "Infosys", "role": "Systems Engineer", "required_cgpa": 6.5, "required_skills": ["Python", "Java", "SQL"], "allowed_departments": ["CSE", "AIML", "AIDS", "ECE", "EEE"], "backlog_policy": "Max 3 backlogs", "package": "8 LPA", "drive_date": "2026-07-15", "status": "active", "min_resume_score": 50, "min_coding_score": 50, "min_mock_interview_score": 45},
+    {"name": "TCS", "role": "Digital", "required_cgpa": 6.0, "required_skills": ["Python", "Java", "SQL"], "allowed_departments": ["CSE", "AIML", "AIDS", "ECE", "EEE", "CIVIL", "MECH"], "backlog_policy": "No restrictions", "package": "7.5 LPA", "drive_date": "2026-07-10", "status": "completed", "min_resume_score": 40, "min_coding_score": 40, "min_mock_interview_score": 35},
+    {"name": "Flipkart", "role": "SDE", "required_cgpa": 7.5, "required_skills": ["DSA", "React", "Node.js"], "allowed_departments": ["CSE", "AIML", "AIDS"], "backlog_policy": "No active backlogs", "package": "25 LPA", "drive_date": "2026-08-10", "status": "upcoming", "min_resume_score": 65, "min_coding_score": 70, "min_mock_interview_score": 60},
+    {"name": "Accenture", "role": "ASE", "required_cgpa": 6.0, "required_skills": ["Python", "Java", "SQL", "Communication"], "allowed_departments": ["CSE", "AIML", "AIDS", "ECE", "EEE"], "backlog_policy": "Max 2 backlogs", "package": "9 LPA", "drive_date": "2026-08-15", "status": "upcoming", "min_resume_score": 45, "min_coding_score": 45, "min_mock_interview_score": 40},
+    {"name": "Goldman Sachs", "role": "Software Engineer", "required_cgpa": 8.5, "required_skills": ["DSA", "Python", "Financial Modeling"], "allowed_departments": ["CSE", "AIML"], "backlog_policy": "No backlogs", "package": "30 LPA", "drive_date": "2026-09-01", "status": "upcoming", "min_resume_score": 80, "min_coding_score": 80, "min_mock_interview_score": 75},
+    {"name": "Stripe", "role": "Backend Engineer", "required_cgpa": 8.5, "required_skills": ["Python", "System Design", "SQL"], "allowed_departments": ["CSE", "AIML", "AIDS"], "backlog_policy": "No active backlogs", "package": "45 LPA", "drive_date": "2026-08-05", "status": "upcoming", "min_resume_score": 80, "min_coding_score": 85, "min_mock_interview_score": 75},
+    {"name": "Adobe", "role": "SDE-1", "required_cgpa": 7.5, "required_skills": ["C++", "Python", "JavaScript"], "allowed_departments": ["CSE", "AIML", "AIDS"], "backlog_policy": "Max 1 backlog", "package": "28 LPA", "drive_date": "2026-08-20", "status": "upcoming", "min_resume_score": 60, "min_coding_score": 65, "min_mock_interview_score": 55},
+]
+
+
+def _ensure_companies(db: Session) -> None:
+    existing = {c.name for c in db.query(Company).all()}
+    for data in COMPANIES:
+        if data["name"] not in existing:
+            db.add(Company(**data))
+            print(f"  Seeded company: {data['name']}")
+
+
 def ensure_demo_data(db: Session, student: Student, users_by_role: dict[UserRole, User]) -> None:
     if not db.query(Notification).filter(Notification.user_id == users_by_role[UserRole.STUDENT].id).first():
         db.add(Notification(user_id=users_by_role[UserRole.STUDENT].id, title="Resume review complete", message="Your resume score improved to 82.", type="success"))
@@ -167,6 +190,7 @@ def main() -> None:
         ensure_faculty_profile(db, users_by_role[UserRole.FACULTY])
         ensure_parent_profile(db, users_by_role[UserRole.PARENT], student)
         ensure_placement_profile(db, users_by_role[UserRole.PLACEMENT_OFFICER])
+        _ensure_companies(db)
         ensure_demo_data(db, student, users_by_role)
 
         db.commit()

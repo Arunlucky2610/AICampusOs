@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   BarChart3,
@@ -438,7 +439,7 @@ function LoadingScreen({ progress, statusIndex, elapsed }: { progress: number; s
   );
 }
 
-function EmptyState({ onFile }: { onFile: (f: File) => void }) {
+function EmptyState({ onFile, company, role, missing }: { onFile: (f: File) => void; company?: string; role?: string; missing?: string }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -467,9 +468,20 @@ function EmptyState({ onFile }: { onFile: (f: File) => void }) {
           <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700 mb-4">
             <Brain size={12} /> Resume Analyzer
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">
-            Upload your resume to get ATS insights.
-          </h1>
+          {company ? (
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">
+              Optimizing resume for {company}{role ? ` ${role}` : ""}
+            </h1>
+          ) : (
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">
+              Upload your resume to get ATS insights.
+            </h1>
+          )}
+          {missing && (
+            <p className="text-sm text-amber-600 mb-2">
+              Missing keywords to address: {missing}
+            </p>
+          )}
 
           <div className="w-full mt-6">
             <div
@@ -567,6 +579,10 @@ function ErrorScreen({ error, fileInfo, backendReason, onRetry, onReset }: { err
 }
 
 export function StudentResumeAnalyzer() {
+  const [searchParams] = useSearchParams();
+  const targetCompany = searchParams.get("company") || "";
+  const targetRole = searchParams.get("role") || "";
+  const targetMissing = searchParams.get("missing") || "";
   const [stage, setStage] = useState<PageStage>("idle");
   const [fileInfo, setFileInfo] = useState<UploadFileInfo | null>(null);
   const [uploadRes, setUploadRes] = useState<UploadResponse | null>(null);
@@ -837,7 +853,7 @@ export function StudentResumeAnalyzer() {
   }, [analysis, fileName, resumeUrl]);
 
   if (stage === "idle") {
-    return <EmptyState onFile={handleFileSelected} />;
+    return <EmptyState onFile={handleFileSelected} company={targetCompany} role={targetRole} missing={targetMissing} />;
   }
 
   if (stage === "uploading") {
@@ -920,6 +936,11 @@ export function StudentResumeAnalyzer() {
               <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700">
                 <Sparkles size={12} /> Resume Analysis Complete
               </div>
+              {targetCompany && (
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-100/70 px-4 py-1.5 text-xs font-semibold text-violet-800">
+                  <BriefcaseBusiness size={13} /> Optimizing resume for {targetCompany}{targetRole ? ` ${targetRole}` : ""}
+                </div>
+              )}
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">AI Resume Analysis Complete</h1>
               <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
                 {analysis.strengths[0] ? `Strongest area: ${analysis.strengths[0]}.` : ""}

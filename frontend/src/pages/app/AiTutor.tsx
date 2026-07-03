@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { useSearchParams } from "react-router-dom";
 import {
   Bot, Send, Loader2, Brain, Volume2, Mic, MicOff,
   BookOpen, Lightbulb, ClipboardList, CalendarDays,
@@ -11,7 +12,7 @@ import {
   AlertTriangle, Sparkles, GraduationCap, RefreshCw,
   ChevronDown, FileUp, MessageSquare, Download, Trash2,
   Search, Copy, Check, ListChecks, TrendingUp, BookMarked,
-  Square, Plus,
+  Square, Plus, BriefcaseBusiness,
 } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { cn } from "../../utils/cn";
@@ -502,7 +503,12 @@ function EmptyState({ quickActions }: { quickActions: { mode: Mode; label: strin
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function AiTutor() {
-  const [activeMode, setActiveMode] = useState<Mode>("ask");
+  const [searchParams] = useSearchParams();
+  const companyFromUrl = searchParams.get("company") || "";
+  const roleFromUrl = searchParams.get("role") || "";
+  const missingFromUrl = searchParams.get("missing") || "";
+  const codingFocusFromUrl = searchParams.get("codingFocus") || "";
+  const [activeMode, setActiveMode] = useState<Mode>(companyFromUrl ? "study-plan" : "ask");
   const [explainMode, setExplainMode] = useState<"simple"|"advanced">("simple");
   const [subject, setSubject] = useState(SUBJECTS[0]);
   const [topic, setTopic] = useState("");
@@ -541,6 +547,23 @@ export function AiTutor() {
 
   useEffect(() => { if (!historyLoaded) { apiGetTutorHistory(50).then(r => { setHistory(r.history); setHistoryLoaded(true); }).catch(() => setHistoryLoaded(true)); } }, [historyLoaded]);
   useEffect(() => { scrollToBottom(); }, [messages]);
+  useEffect(() => {
+    if (companyFromUrl && messages.length === 0 && !isLoading) {
+      const targetSubject = codingFocusFromUrl || "Computer Science";
+      if (SUBJECTS.includes(targetSubject)) setSubject(targetSubject);
+      setTopic(companyFromUrl);
+      const timer = setTimeout(() => {
+        lastActionRef.current = { type: "study-plan", params: { subject: targetSubject, examDate, durationDays } };
+        const msgId = `msg-${Date.now()}`;
+        addMessage({ id: msgId, role: "user", text: `Roadmap for ${companyFromUrl}${roleFromUrl ? ` - ${roleFromUrl}` : ""} (${targetSubject}, ${durationDays} days)`, subject: targetSubject });
+        runWithProgress(`${msgId}-res`,
+          () => apiCreateStudyPlan({ subject: targetSubject, exam_date: examDate, duration_days: durationDays }, useFallbackModel),
+          (res: TutorStudyPlanResponse) => ({ data: res }),
+        );
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [companyFromUrl]);
 
   const loadHistory = useCallback(async () => {
     try { const r = await apiGetTutorHistory(50); setHistory(r.history); } catch {}
@@ -788,7 +811,12 @@ export function AiTutor() {
             <History size={16} />
           </button>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4CF1] to-[#8B5CF6] shadow"><Brain size={16} className="text-white" /></div>
-          <div><h2 className="text-sm font-bold text-[#111827]">AI Tutor</h2><p className="text-[10px] text-[#6B7280]">Personal learning assistant</p></div>
+          <div>
+            <h2 className="text-sm font-bold text-[#111827]">AI Tutor</h2>
+            <p className="text-[10px] text-[#6B7280]">
+              {companyFromUrl ? `${companyFromUrl}${roleFromUrl ? ` ${roleFromUrl}` : ""} Roadmap` : "Personal learning assistant"}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           {isSpeaking && <button onClick={stopSpeech} className="flex items-center gap-1 rounded-full bg-[#FEE2E2] px-2.5 py-1 text-[10px] font-medium text-[#EF4444]"><Volume2 size={11} /> Stop</button>}

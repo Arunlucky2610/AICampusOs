@@ -7,10 +7,11 @@ import {
   Square, RefreshCw, MessageSquare, FileText, Play,
   ArrowRight, RotateCcw, Monitor, GraduationCap,
   UserCheck, Code2, FolderOpen, ListChecks, Lightbulb,
-  Target, ChevronRight,
+  Target, ChevronRight, BriefcaseBusiness,
 } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { RoleCombobox } from "../../components/ui/RoleCombobox";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "../../utils/cn";
 import {
   startInterview as apiStartInterview,
@@ -310,6 +311,12 @@ function AnalysisCard({ analysis }: { analysis: InterviewAnalysis }) {
 }
 
 export function AiMockInterview() {
+  const [searchParams] = useSearchParams();
+  const companyFromUrl = searchParams.get("company") || "";
+  const roleFromUrl = searchParams.get("role") || "";
+  const typeFromUrl = searchParams.get("interviewType") || "";
+  const diffFromUrl = searchParams.get("difficulty") || "";
+
   const [stage, setStage] = useState<InterviewStage>("idle");
   const [error, setError] = useState<string | null>(null);
   const [mediaMode, setMediaMode] = useState<"audio-video" | "audio-only" | "text-only">("text-only");
@@ -347,6 +354,15 @@ export function AiMockInterview() {
   const loadingIntervalRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isBrowserSpeechSupported = typeof window !== "undefined" && ("speechSynthesis" in window);
+
+  useEffect(() => {
+    if (companyFromUrl) {
+      if (!roleFromUrl && companyFromUrl) setRole(companyFromUrl);
+      if (roleFromUrl) setRole(roleFromUrl);
+      if (typeFromUrl && ["technical", "behavioral", "system-design", "coding"].includes(typeFromUrl)) setInterviewType(typeFromUrl);
+      if (diffFromUrl && ["easy", "medium", "hard"].includes(diffFromUrl)) setDifficulty(diffFromUrl);
+    }
+  }, [companyFromUrl, roleFromUrl, typeFromUrl, diffFromUrl]);
 
   useEffect(() => {
     apiListSessions().then(setSessions).catch(() => {});
@@ -651,6 +667,12 @@ export function AiMockInterview() {
                 <button onClick={() => setError(null)} className="text-xs font-semibold text-[#EF4444] underline">Dismiss</button>
               </div>
             </Card>
+          )}
+
+          {companyFromUrl && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#6C4CF1]/20 bg-[#6C4CF1]/5 px-4 py-1.5 text-xs font-semibold text-[#6C4CF1]">
+              <BriefcaseBusiness size={13} /> Interview for {companyFromUrl}{roleFromUrl ? ` - ${roleFromUrl}` : ""}
+            </div>
           )}
 
           {/* Hero setup card */}

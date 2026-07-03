@@ -105,3 +105,34 @@ export type ApplicationPipeline = {
   offered: number;
   joined: number;
 };
+
+export type CompanyData = {
+  id: number;
+  name: string;
+  role: string;
+  requiredCgpa: number;
+  requiredSkills: string[];
+  allowedDepartments: string[];
+  backlogPolicy: string;
+  package: string;
+  driveDate?: string;
+  status: "upcoming" | "active" | "completed";
+  eligibleStudents?: number;
+  minResumeScore?: number;
+  minCodingScore?: number;
+  minMockInterviewScore?: number;
+  description?: string;
+};
+
+export type StudentEligibilityResult = {
+  companyId: number;
+  companyName: string;
+  role: string;
+  package: string;
+  driveDate: string | null;
+  status: string;
+  eligible: boolean;
+  reasons: string[];
+  matchScore: number;
+  criteriaMet: Record<string, boolean>;
+};

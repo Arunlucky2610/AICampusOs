@@ -10,7 +10,7 @@ from app.core.ai_config import validate_ai_configuration
 from app.core.config import get_settings
 from app.core.database import Base, engine
 from app.models import *  # noqa: F403
-from app.routes import admin, ai, auth, faculty, interview, parent, placement, student, tutor, users
+from app.routes import admin, ai, auth, company, faculty, interview, parent, placement, student, tutor, users
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -106,6 +106,7 @@ app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(student.router, prefix=settings.api_prefix)
 app.include_router(faculty.router, prefix=settings.api_prefix)
 app.include_router(placement.router, prefix=settings.api_prefix)
+app.include_router(company.router, prefix=settings.api_prefix)
 app.include_router(parent.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
 app.include_router(ai.router, prefix=settings.api_prefix)

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -12,6 +13,7 @@ import {
 } from "recharts";
 import { Card } from "../../components/ui/Card";
 import { useStudentProfile } from "../../context/StudentProfileContext";
+import { fetchMyEligibility } from "../../api/company";
 
 export function StudentPlacementDashboard() {
   const { profile, completion } = useStudentProfile();
@@ -40,6 +42,16 @@ export function StudentPlacementDashboard() {
     { label: "Applications Sent", value: appsSent != null ? String(appsSent) : "—", trend: "+5", score: Math.min(100, (appsSent ?? 0) * 8), color: "#6C4CF1" },
     { label: "Offers Received", value: offersRecv != null ? String(offersRecv) : "—", trend: offersRecv ? "+2" : "", score: Math.min(100, (offersRecv ?? 0) * 50), color: "#22C55E" },
   ];
+
+  const { data: eligibilityData } = useQuery({
+    queryKey: ["student-company-eligibility"],
+    queryFn: fetchMyEligibility,
+    staleTime: 30_000,
+    enabled: !!profile,
+  });
+
+  const eligibleCompanies = eligibilityData?.filter((e) => e.eligible) ?? [];
+  const topEligible = eligibleCompanies.slice(0, 4);
 
   const skills = p?.skills_data || {};
   const allSkills = [
@@ -76,14 +88,13 @@ export function StudentPlacementDashboard() {
     { icon: Target, text: `Placement readiness is ${readiness ?? 0}%. Focus on mock interviews to improve.`, color: "from-[#F59E0B] to-[#FBBF24]" },
   ];
 
-  const companies = [
-    ...(eligibleCos ? [
-      { name: "Google", eligible: true, role: "SDE", deadline: "Jul 15" },
-      { name: "Microsoft", eligible: true, role: "SWE", deadline: "Jul 20" },
-      { name: "Amazon", eligible: true, role: "SDE", deadline: "Jul 25" },
-      { name: "Stripe", eligible: true, role: "Backend", deadline: "Aug 1" },
-    ] : []),
-  ];
+  const displayCompanies = topEligible.length > 0 ? topEligible.map((e) => ({
+    name: e.companyName,
+    eligible: true,
+    role: e.role,
+    deadline: e.driveDate || "TBD",
+    matchScore: e.matchScore,
+  })) : [];
 
   const placementSignals = [
     { icon: FileText, label: "ATS Score", value: resumeScore != null ? `${Math.round(resumeScore * 0.92)}%` : "—", detail: "Resume parser readiness" },
@@ -289,13 +300,13 @@ export function StudentPlacementDashboard() {
         <Card className="p-6">
           <div className="mb-4"><p className="text-sm font-semibold text-[#6C4CF1]">ELIGIBILITY</p><h3 className="mt-1 text-xl font-bold text-[#111827]">Company Eligibility</h3></div>
           <div className="space-y-2">
-            {companies.length > 0 ? companies.map((c) => (
+            {displayCompanies.length > 0 ? displayCompanies.map((c) => (
               <div key={c.name} className="flex items-center justify-between rounded-xl border border-[#E8ECF1] px-4 py-3 transition hover:border-[#6C4CF1]/20 hover:bg-[#F5F7FA]">
                 <div className="flex items-center gap-3">
-                  <div className={`grid h-8 w-8 place-items-center rounded-lg text-xs font-bold text-white ${c.eligible ? "bg-[#22C55E]" : "bg-[#EF4444]"}`}>{c.name[0]}</div>
-                  <div><p className="text-sm font-semibold text-[#111827]">{c.name}</p><p className="text-xs text-[#6B7280]">{c.role} • Deadline: {c.deadline}</p></div>
+                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#22C55E] text-xs font-bold text-white">{c.name[0]}</div>
+                  <div><p className="text-sm font-semibold text-[#111827]">{c.name}</p><p className="text-xs text-[#6B7280]">{c.role} • Deadline: {c.deadline} • {c.matchScore}% match</p></div>
                 </div>
-                <span className={`text-xs font-bold ${c.eligible ? "text-[#22C55E]" : "text-[#EF4444]"}`}>{c.eligible ? "Eligible" : "Restricted"}</span>
+                <span className="text-xs font-bold text-[#22C55E]">Eligible</span>
               </div>
             )) : <p className="text-sm text-[#6B7280] py-4 text-center">Update your profile to see eligible companies</p>}
           </div>

@@ -96,6 +96,7 @@ STUDENT_COLUMN_TYPES: dict[str, str] = {
     "leetcode_url": "VARCHAR(500)",
     "portfolio_url": "VARCHAR(500)",
     "resume_url": "VARCHAR(500)",
+    "resume_text": "TEXT",
     "linkedin_headline": "VARCHAR(300)",
     "linkedin_about": "TEXT",
     "linkedin_skills": "VARCHAR(500)",
@@ -134,6 +135,12 @@ STUDENT_DEFAULTS: dict[str, Any] = {
 
 def _json_column_type(db: Session) -> str:
     return "JSONB" if db.bind and db.bind.dialect.name == "postgresql" else "JSON"
+
+
+def _bool_to_int(val: bool | None) -> int | None:
+    if val is None:
+        return None
+    return 1 if val else 0
 
 
 def _ensure_students_columns(db: Session) -> set[str]:
@@ -175,17 +182,105 @@ def _get_or_create_student(db: Session, user: User) -> Student:
     _ensure_students_columns(db)
     student = db.query(Student).filter(Student.user_id == user.id).first()
     if not student:
-        student = Student(
-            user_id=user.id,
-            roll_number=f"TEMP-{user.id}",
-            department="Not Set",
-            year=1,
-        )
-        db.add(student)
-        db.commit()
-        db.refresh(student)
-    _apply_student_defaults(student)
+        student = _create_student_row(db, user)
+    else:
+        _apply_student_defaults(student)
     return student
+
+
+def _create_student_row(db: Session, user: User) -> Student:
+    for attempt in range(3):
+        try:
+            temp_roll = f"TEMP-{user.id}-{uuid.uuid4().hex[:8]}"
+            student = Student(
+                user_id=user.id,
+                roll_number=temp_roll,
+                department="Not Set",
+                year=1,
+                course="B.Tech",
+                cgpa=0.0,
+                current_semester_gpa=0.0,
+                attendance_percentage=0.0,
+                credits_earned=0,
+                total_credits=180,
+                skills_data={},
+                semester_gpas=[],
+                subjects_data=[],
+                certifications=[],
+                eligible_companies_list=[],
+                applied_companies_list=[],
+                linkedin_open_to_work=0,
+            )
+            db.add(student)
+            db.commit()
+            db.refresh(student)
+            return student
+        except SQLAlchemyError:
+            db.rollback()
+            logger.warning("Attempt %d: failed to create student for user_id=%s", attempt + 1, user.id)
+    raise HTTPException(status_code=500, detail="Unable to create student profile")
+
+
+def _compute_skill_score(skills_data: dict | None) -> float:
+    skills = skills_data or {}
+    total = 0
+    for v in skills.values():
+        if isinstance(v, list):
+            total += len(v)
+    return min(total * 8, 100)  # each skill = 8pts, max 100
+
+
+def _auto_sync_and_calculate_scores(
+    db: Session,
+    student: Student,
+    cache: CodingProgressCache,
+) -> None:
+    github_username = extract_github_username(student.github_url)
+    leetcode_username = extract_leetcode_username(student.leetcode_url)
+    has_linkedin = bool(student.linkedin_url)
+
+    github_stats_data = {}
+    leetcode_stats_data = {}
+    if github_username:
+        try:
+            github_stats_data = fetch_github_stats(github_username)
+        except Exception:
+            logger.exception("Failed to fetch GitHub stats for %s", github_username)
+    if leetcode_username:
+        try:
+            leetcode_stats_data = fetch_leetcode_stats(leetcode_username)
+        except Exception:
+            logger.exception("Failed to fetch LeetCode stats for %s", leetcode_username)
+
+    coding_score = calculate_coding_score(leetcode_stats_data, github_stats_data, has_linkedin)
+    skill_score = _compute_skill_score(student.skills_data)
+    resume_score = 50 if student.resume_url else 0
+
+    profile_completion = _compute_profile_completion(student)
+    linkedin_strength = _compute_linkedin_profile_strength(student)
+    lc_total = leetcode_stats_data.get("total_solved", 0)
+    if not isinstance(lc_total, (int, float)):
+        lc_total = 0
+
+    placement_readiness_score = calculate_placement_readiness(
+        lc_total, coding_score, resume_score, profile_completion, linkedin_strength,
+    )
+
+    student.coding_score = coding_score
+    student.skill_score = skill_score
+    student.resume_score = resume_score
+    student.placement_readiness_score = placement_readiness_score
+    student.risk_score = max(0, 100 - placement_readiness_score)
+    student.communication_score = min(linkedin_strength, 100)
+    student.mock_interview_score = min(round(placement_readiness_score * 0.85), 100)
+
+    cache.github_username = github_username
+    cache.leetcode_username = leetcode_username
+    cache.github_stats_json = github_stats_data
+    cache.leetcode_stats_json = leetcode_stats_data
+    cache.coding_score = coding_score
+    cache.placement_readiness_score = placement_readiness_score
+    cache.last_synced_at = datetime.utcnow()
 
 
 def _get_or_create_coding_progress_cache(db: Session, user: User) -> CodingProgressCache:
@@ -225,8 +320,8 @@ def update_student_profile(
     db: Session = Depends(get_db),
 ):
     try:
-        table_columns = _ensure_students_columns(db)
         update_data = body.model_dump(exclude_unset=True)
+        logger.debug("PUT /student/profile update_data keys=%s", sorted(update_data.keys()))
 
         user_updated = False
         if update_data.get("full_name"):
@@ -239,30 +334,46 @@ def update_student_profile(
             db.add(current_user)
 
         student = _get_or_create_student(db, current_user)
-        writable_columns = _student_model_columns() & table_columns
-        ignored = sorted(k for k in update_data if k not in writable_columns and k not in ("full_name", "email"))
+        model_columns = _student_model_columns()
+        _PROTECTED = {"id", "user_id", "created_at", "updated_at"}
+
+        ignored = sorted(k for k in update_data if k in _PROTECTED or (k not in model_columns and k not in ("full_name", "email")))
         if ignored:
-            logger.info("Ignoring unknown student profile fields: %s", ignored)
+            logger.info("Ignoring protected/unknown student profile fields: %s", ignored)
 
         for key, val in update_data.items():
-            if key in ("full_name", "email") or key not in writable_columns:
+            if key in _PROTECTED or key in ("full_name", "email") or key not in model_columns:
                 continue
             if key == "total_credits" and val is None:
                 continue
-            setattr(student, key, val)
+            if key == "linkedin_open_to_work":
+                converted = _bool_to_int(val)
+                if converted is None:
+                    continue
+                setattr(student, key, converted)
+            else:
+                setattr(student, key, val)
+
+        has_coding_urls = bool(student.github_url or student.leetcode_url)
+        if has_coding_urls:
+            try:
+                cache = _get_or_create_coding_progress_cache(db, current_user)
+                _auto_sync_and_calculate_scores(db, student, cache)
+            except Exception:
+                logger.exception("Auto-sync failed after profile update for user_id=%s", current_user.id)
 
         db.add(student)
         db.commit()
         db.refresh(student)
         return student
-    except SQLAlchemyError as exc:
+    except SQLAlchemyError:
         db.rollback()
-        logger.exception("PUT /student/profile failed for user_id=%s", current_user.id)
-        raise HTTPException(status_code=500, detail={"message": "Unable to save student profile", "error": str(exc)})
-    except Exception as exc:
+        logger.exception("PUT /student/profile SQL failure for user_id=%s", current_user.id)
+        raise HTTPException(status_code=500, detail="Unable to save student profile")
+    except Exception:
         db.rollback()
         logger.exception("Unexpected PUT /student/profile failure for user_id=%s", current_user.id)
-        raise HTTPException(status_code=500, detail={"message": "Unable to save student profile", "error": str(exc)})
+        raise HTTPException(status_code=500, detail="Unable to save student profile")
 
 
 @router.post("/profile/photo")
@@ -580,6 +691,7 @@ def student_dashboard(
         "section": student.section,
         "branch": student.branch,
         "faculty_advisor": student.faculty_advisor,
+        "preferred_role": student.preferred_role,
     }
 
     coding_summary = {

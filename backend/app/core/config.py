@@ -53,7 +53,14 @@ class Settings(BaseSettings):
     max_ai_requests_per_day: int = 100
     max_ai_tokens: int = 8192
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    mock_interview_nvidia_api_key: str = ""
+    mock_interview_nvidia_model: str = "meta/llama-3.1-8b-instruct"
+    mock_interview_nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    mock_interview_max_tokens: int = 512
+    mock_interview_temperature: float = 0.5
+    mock_interview_stream: bool = True
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def allowed_origins(self) -> List[str]:

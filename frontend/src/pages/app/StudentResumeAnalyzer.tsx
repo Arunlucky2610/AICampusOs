@@ -72,17 +72,16 @@ interface ActionItem {
   status: string;
 }
 
-const ACCEPTED_TYPES = ".pdf,.docx,.txt";
+const ACCEPTED_TYPES = ".pdf,.docx";
 const MAX_SIZE = 10 * 1024 * 1024;
 const COMPANY_TARGETS = ["Google", "Microsoft", "Amazon", "TCS", "Deloitte"];
 
 const STATUS_LINES = [
-  "Uploading",
-  "Reading PDF",
-  "Extracting Text",
-  "ATS Analysis",
-  "AI Evaluation",
-  "Generating Report",
+  "Reading resume...",
+  "Extracting text...",
+  "Analyzing skills...",
+  "Calculating ATS score...",
+  "Generating recommendations...",
 ];
 
 function clamp(value: number, min = 0, max = 100): number {
@@ -400,14 +399,6 @@ function LoadingScreen({ progress, statusIndex, elapsed }: { progress: number; s
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-24 h-6 bg-violet-500/20 rounded-full blur-xl" />
             </div>
             <CircularProgress progress={progress} />
-            <motion.p
-              key={statusIndex}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-sm font-medium text-violet-200/80 text-center"
-            >
-              {statusText}
-            </motion.p>
             <div className="flex items-center gap-1.5 text-[11px] text-violet-300/60">
               <Clock size={11} />
               <span>{minutes}:{seconds.toString().padStart(2, "0")}</span>
@@ -426,7 +417,7 @@ function LoadingScreen({ progress, statusIndex, elapsed }: { progress: number; s
               <div className="mb-4 flex items-center gap-2">
                 <div className="flex items-center gap-2 rounded-full bg-violet-500/10 px-3 py-1">
                   <Sparkles size={11} className="text-violet-300" />
-                  <span className="text-[11px] font-medium text-violet-200">AI Scanning</span>
+                  <span className="text-[11px] font-medium text-violet-200">{statusText}</span>
                 </div>
               </div>
               <SkeletonPreview />
@@ -446,39 +437,55 @@ function EmptyState({ onFile, company, role, missing }: { onFile: (f: File) => v
     e.preventDefault();
     setDragging(false);
     const f = e.dataTransfer.files[0];
-    if (f && ACCEPTED_TYPES.includes(f.name.split(".").pop()?.toLowerCase() || "")) onFile(f);
+    if (f && ACCEPTED_TYPES.includes("." + (f.name.split(".").pop()?.toLowerCase() || ""))) onFile(f);
   }, [onFile]);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-full bg-[radial-gradient(circle_at_center,rgba(109,40,217,0.08),transparent_50%),linear-gradient(180deg,#f7f2ff_0%,#f8fafc_100%)] flex items-center justify-center p-4"
+      className="min-h-full bg-[radial-gradient(ellipse_at_center,rgba(109,40,217,0.10),transparent_60%),radial-gradient(ellipse_at_bottom_right,rgba(139,92,246,0.06),transparent_50%),linear-gradient(180deg,#f5f0ff_0%,#f8fafc_100%)] flex items-center justify-center p-4"
     >
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-xl">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
           className="flex flex-col items-center text-center"
         >
-          <div className="mb-4">
-            <AiOrb />
+          <div className="relative mb-6">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+              className="absolute -inset-8 rounded-full border border-violet-200/30"
+            />
+            <div className="relative rounded-full bg-white/70 p-5 shadow-[0_0_60px_rgba(139,92,246,0.12)] backdrop-blur-xl">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/20">
+                <FileText size={36} className="text-white" />
+              </div>
+            </div>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700 mb-4">
-            <Brain size={12} /> Resume Analyzer
+
+          <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700 mb-5">
+            <Brain size={12} /> AI Resume Analyzer
           </div>
+
           {company ? (
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">
-              Optimizing resume for {company}{role ? ` ${role}` : ""}
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 mb-3">
+              Optimizing resume for <span className="text-violet-600">{company}</span>{role ? ` — ${role}` : ""}
             </h1>
           ) : (
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">
-              Upload your resume to get ATS insights.
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 mb-3">
+              Upload your resume to receive an AI-powered ATS and career analysis.
             </h1>
           )}
+
+          <p className="text-sm text-slate-500 max-w-md mb-2">
+            Get instant ATS score, skills gap analysis, and personalized recommendations to land more interviews.
+          </p>
+
           {missing && (
-            <p className="text-sm text-amber-600 mb-2">
+            <p className="text-sm text-amber-600 mb-3">
               Missing keywords to address: {missing}
             </p>
           )}
@@ -490,21 +497,43 @@ function EmptyState({ onFile, company, role, missing }: { onFile: (f: File) => v
               onDrop={handleDrop}
               onClick={() => inputRef.current?.click()}
               className={cn(
-                "relative cursor-pointer rounded-[24px] border-2 border-dashed p-6 text-center backdrop-blur-xl transition-all duration-300",
+                "relative cursor-pointer rounded-[28px] border-2 border-dashed p-8 text-center backdrop-blur-xl transition-all duration-300",
                 dragging
-                  ? "border-violet-400 bg-violet-500/10 shadow-[0_0_50px_rgba(109,40,217,0.18)]"
-                  : "border-white/60 bg-white/70 hover:border-violet-300/30 hover:bg-white/85"
+                  ? "border-violet-400 bg-violet-500/10 shadow-[0_0_60px_rgba(109,40,217,0.20)] scale-[1.01]"
+                  : "border-violet-200/60 bg-white/80 hover:border-violet-300/50 hover:bg-white/90 hover:shadow-[0_8px_40px_rgba(139,92,246,0.08)]"
               )}
             >
               <input ref={inputRef} type="file" accept={ACCEPTED_TYPES} onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} className="hidden" />
-              <motion.div animate={dragging ? { scale: 1.05, y: -3 } : { scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 200 }}>
-                <div className={cn("mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors", dragging ? "bg-violet-600 text-white" : "bg-white text-violet-600 shadow-sm")}>
-                  <Upload size={20} />
+              <motion.div animate={dragging ? { scale: 1.05, y: -4 } : { scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 200 }}>
+                <div className={cn(
+                  "mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl transition-all duration-300",
+                  dragging ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30 scale-110" : "bg-violet-50 text-violet-600 shadow-sm"
+                )}>
+                  <Upload size={24} />
                 </div>
               </motion.div>
-              <p className="text-sm font-semibold text-slate-800">{dragging ? "Drop your resume here" : "Drag & drop your resume"}</p>
-              <p className="mt-0.5 text-xs text-slate-400">PDF, DOCX, TXT - max 10MB</p>
+              <p className="text-base font-semibold text-slate-800">
+                {dragging ? "Drop your resume here" : "Drag & drop your resume here"}
+              </p>
+              <p className="mt-1.5 text-sm text-slate-400">or click to browse</p>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-medium text-violet-600">PDF</span>
+                <span className="text-slate-300">|</span>
+                <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-medium text-violet-600">DOCX</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-[11px] text-slate-400">Max 10 MB</span>
+              </div>
             </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => inputRef.current?.click()}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-violet-600/20 transition hover:shadow-xl"
+            >
+              <Upload size={18} />
+              Upload Resume
+            </motion.button>
           </div>
         </motion.div>
       </div>
@@ -649,8 +678,8 @@ export function StudentResumeAnalyzer() {
 
   const handleFileSelected = useCallback(async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!ext || !["pdf", "docx", "txt"].includes(ext)) {
-      setError("Unsupported file format. Please upload PDF, DOCX, or TXT.");
+    if (!ext || !["pdf", "docx"].includes(ext)) {
+      setError("Unsupported file format. Please upload PDF or DOCX.");
       return;
     }
     if (file.size > MAX_SIZE) {

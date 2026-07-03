@@ -179,7 +179,7 @@ export interface CareerIntelligenceState {
 
 export async function fetchLatestAnalysis<T>(moduleType: string): Promise<T | null> {
   try {
-    const res = await api.get<T>(`/ai/latest/${moduleType}`);
+    const res = await api.get<T>(`/ai/latest/${moduleType}`, { timeout: 8000 });
     return res.data;
   } catch {
     return null;
@@ -188,7 +188,7 @@ export async function fetchLatestAnalysis<T>(moduleType: string): Promise<T | nu
 
 export async function runAIModule<T>(moduleType: string): Promise<T | null> {
   try {
-    const res = await api.post<T>(`/ai/run/${moduleType}`);
+    const res = await api.post<T>(`/ai/run/${moduleType}`, {}, { timeout: 8000 });
     return res.data;
   } catch {
     return null;
@@ -197,7 +197,7 @@ export async function runAIModule<T>(moduleType: string): Promise<T | null> {
 
 export async function fetchCodingProgress(): Promise<CodingProgressResult | null> {
   try {
-    const res = await api.get<CodingProgressResult>("/student/coding-progress");
+    const res = await api.get<CodingProgressResult>("/student/coding-progress", { timeout: 8000 });
     return res.data;
   } catch {
     return null;
@@ -206,7 +206,7 @@ export async function fetchCodingProgress(): Promise<CodingProgressResult | null
 
 export async function fetchDashboard(): Promise<DashboardResult | null> {
   try {
-    const res = await api.get<DashboardResult>("/student/dashboard");
+    const res = await api.get<DashboardResult>("/student/dashboard", { timeout: 8000 });
     return res.data;
   } catch {
     return null;
@@ -215,10 +215,10 @@ export async function fetchDashboard(): Promise<DashboardResult | null> {
 
 export async function fetchLatestMockInterview(): Promise<MockInterviewResult | null> {
   try {
-    const sessions = await api.get<Array<{ session_id: number; score?: number }>>("/ai/mock/sessions");
+    const sessions = await api.get<Array<{ session_id: number; score?: number }>>("/ai/mock/sessions", { timeout: 8000 });
     const latest = sessions.data?.[0];
     if (!latest?.session_id) return null;
-    const session = await api.get<any>(`/ai/mock/session/${latest.session_id}`);
+    const session = await api.get<any>(`/ai/mock/session/${latest.session_id}`, { timeout: 8000 });
     const d = session.data;
     return {
       session_id: d.session_id,

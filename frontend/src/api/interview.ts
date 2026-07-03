@@ -97,12 +97,12 @@ export interface SessionListItem {
 }
 
 export async function startInterview(data: StartInterviewRequest): Promise<StartInterviewResponse> {
-  const res = await api.post("/ai/mock/start", data);
+  const res = await api.post("/mock-interview/start", data, { timeout: 8000 });
   return res.data;
 }
 
 export async function submitAnswer(data: AnswerRequest): Promise<AnswerResponse> {
-  const res = await api.post("/ai/mock/answer", data);
+  const res = await api.post("/mock-interview/answer", data, { timeout: 8000 });
   return res.data;
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchMyEligibility } from "../../api/company";
 import { useStudentProfile } from "../../context/StudentProfileContext";
@@ -431,6 +431,15 @@ export function StudentCodingProgress() {
   }), [data, profile]);
 
   const hasLinks = links.githubUrl || links.leetcodeUrl || links.linkedinUrl;
+
+  const autoSyncRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncRef.current) return;
+    if (!hasLinks || codingLoading || syncMutation.isPending) return;
+    if (data?.last_synced_at) return;
+    autoSyncRef.current = true;
+    syncMutation.mutate();
+  }, [hasLinks, codingLoading, data?.last_synced_at, syncMutation.isPending]);
 
   const lc = data?.leetcode_stats;
   const gh = data?.github_stats;

@@ -70,6 +70,7 @@ const defaultProfile = (name: string, email: string): StudentProfile => ({
   leetcode_url: null,
   portfolio_url: null,
   resume_url: null,
+  resume_text: null,
   parent_name: null,
   parent_phone: null,
   parent_email: null,
@@ -109,7 +110,7 @@ export function StudentProfileProvider({ children }: { children: ReactNode }) {
     if (!profile) return { percent: 0, missing: [] };
     const checks: [string, boolean][] = [
       ["Profile Photo", !!(data?.profile_photo_url)],
-      ["Roll Number", !!profile.roll_number && profile.roll_number !== `TEMP-${profile.user_id}`],
+      ["Roll Number", !!profile.roll_number && !profile.roll_number.startsWith("TEMP-")],
       ["Registration Number", !!profile.registration_number],
       ["Department", !!profile.department && profile.department !== "Not Set"],
       ["Course", !!profile.course],

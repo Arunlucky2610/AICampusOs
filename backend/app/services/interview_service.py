@@ -1,13 +1,15 @@
 import json
 import logging
+import time
 from typing import Optional
 
+import httpx
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.interview import InterviewSession
 from app.models.student import Student
 from app.models.user import User
-from app.services.ai_service import run_ai
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,110 @@ Return ONLY valid JSON:
 Score fairly (0-100). Do not inflate."""
 
 
+MOCK_INTERVIEW_TIMEOUT = 240.0
+
+
+def _get_mock_interview_config() -> dict:
+    settings = get_settings()
+    api_key = settings.mock_interview_nvidia_api_key or settings.nvidia_api_key
+    if not api_key:
+        raise RuntimeError("MOCK_INTERVIEW_NVIDIA_API_KEY or NVIDIA_API_KEY must be set.")
+    return {
+        "base_url": (settings.mock_interview_nvidia_base_url or settings.ai_base_url).rstrip("/"),
+        "api_key": api_key,
+        "model": settings.mock_interview_nvidia_model,
+        "max_tokens": settings.mock_interview_max_tokens or 512,
+        "temperature": settings.mock_interview_temperature or 0.5,
+    }
+
+
+def _get_mock_client(cfg: dict) -> httpx.Client:
+    return httpx.Client(
+        base_url=cfg["base_url"],
+        headers={
+            "Authorization": f"Bearer {cfg['api_key']}",
+            "Content-Type": "application/json",
+        },
+        timeout=MOCK_INTERVIEW_TIMEOUT + 5.0,
+    )
+
+
+def _log_response_time(start: float, model: str):
+    elapsed = time.time() - start
+    logger.info(
+        "Mock Interview AI provider=nvidia model=%s response_time=%.2fs",
+        model, elapsed,
+    )
+
+
+def run_mock_interview_ai(system_prompt: str, user_prompt: str, timeout: float = MOCK_INTERVIEW_TIMEOUT) -> dict:
+    cfg = _get_mock_interview_config()
+    client = _get_mock_client(cfg)
+
+    payload = {
+        "model": cfg["model"],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": cfg["temperature"],
+        "max_tokens": cfg["max_tokens"],
+    }
+
+    logger.info(
+        "Mock Interview AI request: model=%s base_url=%s max_tokens=%s timeout=%ss",
+        cfg["model"], cfg["base_url"], cfg["max_tokens"], timeout,
+    )
+
+    start = time.time()
+    try:
+        response = client.post("/chat/completions", json=payload, timeout=timeout)
+    except httpx.TimeoutException:
+        logger.error("Mock Interview AI request timed out")
+        raise
+    except httpx.RequestError as exc:
+        logger.error("Mock Interview AI request failed: %s", exc)
+        raise
+
+    if response.status_code == 401:
+        logger.error("Mock Interview AI returned 401 — invalid API key")
+        raise RuntimeError("Invalid Mock Interview API key.")
+    if response.status_code == 404:
+        logger.error("Mock Interview AI returned 404 — model '%s' not found", cfg["model"])
+        raise RuntimeError(f"Model '{cfg['model']}' not found.")
+    if response.status_code != 200:
+        body = response.text[:500]
+        logger.error("Mock Interview AI returned %s: %s", response.status_code, body)
+        raise RuntimeError(f"Mock Interview AI returned HTTP {response.status_code}")
+
+    _log_response_time(start, cfg["model"])
+    result = response.json()
+    choices = result.get("choices", [])
+    if not choices:
+        logger.error("Mock Interview AI returned empty choices array")
+        raise RuntimeError("Mock Interview AI returned empty response.")
+
+    content = choices[0].get("message", {}).get("content", "")
+    if not content:
+        logger.error("Mock Interview AI returned empty message content")
+        raise RuntimeError("Mock Interview AI returned empty message content.")
+
+    content = content.strip()
+    if content.startswith("```"):
+        content = content.strip("`")
+        if content.startswith("json"):
+            content = content[4:]
+        content = content.strip()
+
+    try:
+        parsed = json.loads(content)
+        logger.info("Mock Interview AI response parsed as JSON with keys: %s", list(parsed.keys()))
+        return parsed
+    except json.JSONDecodeError as exc:
+        logger.warning("Mock Interview AI response not valid JSON: %s", exc)
+        raise
+
+
 def _get_student_context(db: Session, user: User) -> dict:
     if user.id in _context_cache:
         return _context_cache[user.id]
@@ -112,8 +218,12 @@ def generate_questions(db: Session, user: User, role: str) -> list[dict]:
     system_prompt = QUESTION_GENERATION_PROMPT.format(
         role=role, count=INTERVIEW_QUESTIONS_COUNT, **ctx,
     )
-    result = run_ai(system_prompt, "Generate interview questions.")
-    questions = result.get("questions", [])
+    try:
+        result = run_mock_interview_ai(system_prompt, "Generate interview questions.")
+        questions = result.get("questions", [])
+    except Exception as e:
+        logger.warning("Question generation failed: %s", e)
+        questions = []
     if not questions:
         questions = _fallback_questions(role)
     return questions
@@ -137,7 +247,7 @@ def analyze_answer(question: dict, answer_text: str) -> dict:
         answer=answer_text[:1500],
     )
     try:
-        return run_ai(prompt, "Analyze answer.")
+        return run_mock_interview_ai(prompt, "Analyze answer.")
     except Exception as e:
         logger.warning("Answer analysis failed: %s", e)
         return {
@@ -165,7 +275,7 @@ def generate_full_analysis(db: Session, session: InterviewSession, user: User) -
         **ctx,
     )
     try:
-        result = run_ai(prompt, "Generate comprehensive analysis.")
+        result = run_mock_interview_ai(prompt, "Generate comprehensive analysis.")
         required_keys = [
             "communicationScore", "confidenceScore", "clarityScore",
             "technicalScore", "projectKnowledgeScore", "grammarFeedback",

@@ -10,6 +10,7 @@ from app.services.interview_service import (
     analyze_answer,
     generate_full_analysis,
     invalidate_context_cache,
+    run_mock_interview_ai,
 )
 
 
@@ -118,7 +119,7 @@ class TestGetStudentContext:
 
 
 class TestAnalyzeAnswer:
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_returns_analysis_on_success(self, mock_run_ai, sample_question):
         mock_run_ai.return_value = {
             "questionScore": 85,
@@ -132,7 +133,7 @@ class TestAnalyzeAnswer:
         assert result["questionScore"] == 85
         assert "Good explanation" in result["strengths"]
 
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_truncates_long_answer(self, mock_run_ai, sample_question):
         long_answer = "x" * 2000
         mock_run_ai.return_value = {"questionScore": 70, "strengths": [], "weaknesses": [], "missedKeywords": [], "feedback": "", "idealAnswer": ""}
@@ -142,7 +143,7 @@ class TestAnalyzeAnswer:
         answer_text = passed_prompt[answer_start + len("Answer: "):]
         assert len(answer_text) <= 1500
 
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_fallback_on_exception(self, mock_run_ai, sample_question):
         mock_run_ai.side_effect = RuntimeError("API down")
         result = analyze_answer(sample_question, "My answer")
@@ -150,7 +151,7 @@ class TestAnalyzeAnswer:
         assert "Attempted to answer" in result["strengths"]
         assert result["feedback"] == "Noted."
 
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_includes_question_and_answer_in_prompt(self, mock_run_ai, sample_question):
         mock_run_ai.return_value = {"questionScore": 90, "strengths": [], "weaknesses": [], "missedKeywords": [], "feedback": "", "idealAnswer": ""}
         analyze_answer(sample_question, "My detailed answer")
@@ -161,7 +162,7 @@ class TestAnalyzeAnswer:
 
 
 class TestGenerateFullAnalysis:
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_returns_analysis_on_success(self, mock_run_ai, mock_db, mock_user, mock_session):
         mock_run_ai.return_value = {
             "communicationScore": 80,
@@ -182,7 +183,7 @@ class TestGenerateFullAnalysis:
         assert result["communicationScore"] == 80
         assert result["finalVerdict"] == "Good performance overall."
 
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_fills_missing_keys_with_defaults(self, mock_run_ai, mock_db, mock_user, mock_session):
         mock_run_ai.return_value = {"communicationScore": 50}
         result = generate_full_analysis(mock_db, mock_session, mock_user)
@@ -191,7 +192,7 @@ class TestGenerateFullAnalysis:
         assert result["strengths"] == []
         assert result["finalVerdict"] == ""
 
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_fallback_on_exception(self, mock_run_ai, mock_db, mock_user, mock_session):
         mock_run_ai.side_effect = RuntimeError("API failure")
         result = generate_full_analysis(mock_db, mock_session, mock_user)
@@ -199,7 +200,7 @@ class TestGenerateFullAnalysis:
         assert "Attempted all questions" in result["strengths"]
         assert len(result["improvementPlan"]) == 5
 
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_includes_qa_pairs_in_prompt(self, mock_run_ai, mock_db, mock_user, mock_session):
         mock_run_ai.return_value = {"communicationScore": 80, "confidenceScore": 80, "clarityScore": 80, "technicalScore": 80, "projectKnowledgeScore": 80, "grammarFeedback": "", "strengths": [], "weaknesses": [], "exactWeakAreas": [], "idealAnswer": "", "followUpQuestion": "", "improvementPlan": [], "finalVerdict": ""}
         generate_full_analysis(mock_db, mock_session, mock_user)
@@ -209,7 +210,7 @@ class TestGenerateFullAnalysis:
         assert "Answer 1" in prompt
         assert "Software Engineer" in prompt
 
-    @patch("app.services.interview_service.run_ai")
+    @patch("app.services.interview_service.run_mock_interview_ai")
     def test_truncates_answers_in_qa_pairs(self, mock_run_ai, mock_db, mock_user, mock_session):
         long_answer = "x" * 600
         mock_session.answers = [{"text": long_answer}] * 6

@@ -15,8 +15,16 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("students", sa.Column("resume_text", sa.Text(), nullable=True))
+    conn = op.get_bind()
+    inspector = sa.Inspector.from_engine(conn)
+    columns = [c["name"] for c in inspector.get_columns("students")]
+    if "resume_text" not in columns:
+        op.add_column("students", sa.Column("resume_text", sa.Text(), nullable=True))
 
 
 def downgrade():
-    op.drop_column("students", "resume_text")
+    conn = op.get_bind()
+    inspector = sa.Inspector.from_engine(conn)
+    columns = [c["name"] for c in inspector.get_columns("students")]
+    if "resume_text" in columns:
+        op.drop_column("students", "resume_text")

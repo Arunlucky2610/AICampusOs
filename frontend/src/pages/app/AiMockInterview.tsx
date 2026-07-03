@@ -13,6 +13,7 @@ import { Card } from "../../components/ui/Card";
 import { RoleCombobox } from "../../components/ui/RoleCombobox";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "../../utils/cn";
+import { useOptionalStudentProfile } from "../../context/StudentProfileContext";
 import {
   startInterview as apiStartInterview,
   submitAnswer as apiSubmitAnswer,
@@ -322,7 +323,9 @@ export function AiMockInterview() {
   const [mediaMode, setMediaMode] = useState<"audio-video" | "audio-only" | "text-only">("text-only");
   const [interviewType, setInterviewType] = useState("technical");
   const [difficulty, setDifficulty] = useState("medium");
-  const [role, setRole] = useState("Software Engineer");
+  const profileContext = useOptionalStudentProfile();
+  const prefRole = profileContext.profile?.preferred_role || "Software Engineer";
+  const [role, setRole] = useState(prefRole);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<InterviewQuestion | null>(null);
   const [questionNumber, setQuestionNumber] = useState(0);
@@ -333,6 +336,8 @@ export function AiMockInterview() {
   const [overallScore, setOverallScore] = useState(0);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
+  const sessionsFetchedRef = useRef(false);
   const [showHistory, setShowHistory] = useState(false);
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -355,6 +360,8 @@ export function AiMockInterview() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isBrowserSpeechSupported = typeof window !== "undefined" && ("speechSynthesis" in window);
 
+  const startedRef = useRef(false);
+
   useEffect(() => {
     if (companyFromUrl) {
       if (!roleFromUrl && companyFromUrl) setRole(companyFromUrl);
@@ -362,27 +369,27 @@ export function AiMockInterview() {
       if (typeFromUrl && ["technical", "behavioral", "system-design", "coding"].includes(typeFromUrl)) setInterviewType(typeFromUrl);
       if (diffFromUrl && ["easy", "medium", "hard"].includes(diffFromUrl)) setDifficulty(diffFromUrl);
     }
+    if (!sessionsFetchedRef.current) {
+      sessionsFetchedRef.current = true;
+      apiListSessions().then(s => { setSessions(s); setSessionsLoaded(true); }).catch(() => setSessionsLoaded(true));
+    }
   }, [companyFromUrl, roleFromUrl, typeFromUrl, diffFromUrl]);
 
   useEffect(() => {
-    apiListSessions().then(setSessions).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!navigator.mediaDevices) { setMediaMode("text-only"); setPermissionsResolved(true); return; }
+    setPermissionsResolved(true);
+    if (!navigator.mediaDevices) { setMediaMode("text-only"); return; }
     (async () => {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         streamRef.current = s; if (videoRef.current) videoRef.current.srcObject = s;
-        setMediaMode("audio-video"); setPermissionsResolved(true);
+        setMediaMode("audio-video");
       } catch {
         try {
           const s = await navigator.mediaDevices.getUserMedia({ audio: true });
           streamRef.current = s; setMediaMode("audio-only");
-          setPermissionWarning("Camera unavailable, continuing in audio mode."); setPermissionsResolved(true);
+          setPermissionWarning("Camera unavailable, continuing in audio mode.");
         } catch {
           setMediaMode("text-only"); setPermissionWarning("Microphone unavailable, continuing in text mode.");
-          setPermissionsResolved(true);
         }
       }
     })();
@@ -503,6 +510,9 @@ export function AiMockInterview() {
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
   const handleStartInterview = useCallback(async (resumeSid?: number) => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    setTimeout(() => { startedRef.current = false; }, 2000);
     setError(null); setStage("starting"); setQaHistory([]); setAnalysis(null);
     setOverallScore(0); setFeedback(null); setLastScore(null); setLastFeedback("");
     setInterviewTimer(0);
@@ -533,8 +543,16 @@ export function AiMockInterview() {
           feedback: a.analysis?.feedback,
         })));
       } else {
+        const profSkills = profileContext.profile?.skills_data || {};
+        const allSkills = [
+          ...(profSkills.programming_languages || []),
+          ...(profSkills.frameworks || []),
+          ...(profSkills.ai_skills || []),
+          ...(profSkills.soft_skills || []),
+        ].filter(Boolean);
         const res: StartInterviewResponse = await apiStartInterview({
           role: `${role} (${interviewType})`,
+          skills: allSkills.length > 0 ? allSkills : undefined,
           interview_type: mediaMode === "text-only" ? "text" : "audio",
         });
         setSessionId(res.session_id); setCurrentQuestion(res.question);
@@ -620,6 +638,7 @@ export function AiMockInterview() {
   }, [sessionId]);
 
   const handleNewInterview = useCallback(() => {
+    startedRef.current = false;
     stopMediaTracks();
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     stopSpeaking();
@@ -647,13 +666,6 @@ export function AiMockInterview() {
             <p className="mt-1 text-sm text-[#6B7280]">Practice interviews with AI-powered voice & camera feedback</p>
           </div>
 
-          {/* Permission warning - soft inline */}
-          {!permissionsResolved && navigator.mediaDevices && (
-            <div className="flex items-center justify-center gap-2 text-xs text-[#6B7280]">
-              <Loader2 size={12} className="animate-spin text-[#6C4CF1]" />
-              Checking camera and microphone...
-            </div>
-          )}
           {permissionWarning && (
             <div className="flex items-center justify-center gap-1.5 text-xs text-[#F59E0B]">
               <AlertTriangle size={11} />
@@ -824,28 +836,13 @@ export function AiMockInterview() {
 
   // ─── STARTING SCREEN ──────────────────────────────────────────────────────
   if (stage === "starting") {
-    const tips = [
-      { icon: Brain, text: "AI is analyzing your profile..." },
-      { icon: Sparkles, text: "Crafting personalized questions..." },
-      { icon: BarChart3, text: "Calibrating evaluation criteria..." },
-    ];
-    const tip = tips[loadingMsgIdx % tips.length] || tips[0];
     return (
       <PageShell>
         <div className="flex items-center justify-center py-20">
-          <div className="text-center space-y-5">
+          <div className="text-center space-y-4">
             <AiAvatar isSpeaking={false} isListening={false} size="lg" />
-            <div className="flex items-center justify-center gap-2">
-              <tip.icon size={18} className="text-[#6C4CF1]" />
-              <p className="text-base font-semibold text-[#111827]">{tip.text}</p>
-            </div>
-            <div className="flex gap-1.5 justify-center">
-              {[0, 1, 2].map(i => (
-                <motion.span key={i} animate={{ y: [0, -6, 0] }}
-                  transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.2 }}
-                  className="h-2 w-2 rounded-full bg-[#6C4CF1]" />
-              ))}
-            </div>
+            <Loader2 size={20} className="mx-auto animate-spin text-[#6C4CF1]" />
+            <p className="text-sm font-medium text-[#6B7280]">Preparing your interview...</p>
           </div>
         </div>
       </PageShell>

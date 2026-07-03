@@ -48,6 +48,7 @@ const PROFILE_FIELD_MAP: Record<string, string> = {
   leetcodeUrl: "leetcode_url",
   portfolioUrl: "portfolio_url",
   resumeUrl: "resume_url",
+  resumeText: "resume_text",
   linkedinHeadline: "linkedin_headline",
   linkedinAbout: "linkedin_about",
   linkedinSkills: "linkedin_skills",

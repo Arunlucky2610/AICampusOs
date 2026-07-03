@@ -1,7 +1,8 @@
 import logging
+import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,68 @@ from app.services.ai_router import AIRouter, get_latest_result
 from app.services.ai_service import assistant_reply, career_recommendation, learning_roadmap, placement_prediction, resume_analysis, risk_prediction, skill_gap
 
 logger = logging.getLogger(__name__)
+
+
+_DEFAULT_RESULTS = {
+    "resume_analyzer": {
+        "atsScore": 0, "resumeStrengthScore": 0, "skillsMatch": 0,
+        "projectImpact": 0, "experienceQuality": 0,
+        "missingKeywords": [], "weakSections": [], "corrections": [],
+        "improvedSummary": "", "strengths": [], "weaknesses": [],
+        "evidenceFromData": [], "exactWeakAreas": [],
+        "improvementPlan": [], "nextActions": [],
+        "missingData": [],
+    },
+    "github_project_analyzer": {
+        "projectScore": 0, "repoQuality": 0, "commitConsistency": 0,
+        "readmeQuality": 0, "techStackDepth": 0, "projectKnowledge": 0,
+        "strengths": [], "weaknesses": [],
+        "exactWeakAreas": [], "improvementPlan": [], "nextActions": [],
+        "evidenceFromData": [],
+    },
+    "linkedin_analyzer": {
+        "profile_completeness": 0, "headline_score": 0,
+        "about_section_feedback": "Run LinkedIn analysis to get feedback.",
+        "skill_endorsements": "", "recommendations": "",
+    },
+    "leetcode_analyzer": {
+        "codingScore": 0, "dsaReadinessScore": 0,
+        "easyMediumHardBalance": {"easy_pct": 0, "medium_pct": 0, "hard_pct": 0},
+        "strongTopics": [], "weakTopics": [],
+        "consistency": 0, "problemSolvingLevel": 0, "placementCodingReadiness": 0,
+        "exactWeakAreas": [], "improvementPlan": [], "nextActions": [],
+        "evidenceFromData": [], "missingData": [],
+    },
+    "career_copilot": {
+        "recommended_roles": [],
+        "skill_gaps": [],
+        "suggested_courses": [],
+        "next_steps": [],
+        "learning_roadmap": [],
+    },
+    "project_analyzer": {
+        "projectScore": 0, "repoQuality": 0, "commitConsistency": 0,
+        "readmeQuality": 0, "techStackDepth": 0, "projectKnowledge": 0,
+        "strengths": [], "weaknesses": [],
+        "exactWeakAreas": [], "improvementPlan": [], "nextActions": [],
+        "evidenceFromData": [],
+    },
+}
+
+
+def _timer_middleware(handler):
+    """Decorator that logs slow endpoint execution time."""
+    async def wrapper(*args, **kwargs):
+        start = time.time()
+        try:
+            return handler(*args, **kwargs)
+        finally:
+            elapsed = time.time() - start
+            if elapsed > 1:
+                logger.warning("Slow endpoint %s took %.2f seconds", handler.__name__, elapsed)
+            elif elapsed > 0.5:
+                logger.info("Endpoint %s took %.2f seconds", handler.__name__, elapsed)
+    return wrapper
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -135,12 +198,15 @@ def get_latest_ai_result(
     module_type: str,
     user: User = Depends(get_current_user),
 ):
+    t0 = time.time()
     result = get_latest_result(user.id, module_type)
+    elapsed = time.time() - t0
+    if elapsed > 1:
+        logger.warning("Slow cache lookup for '%s': %.2f seconds", module_type, elapsed)
+
     if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No cached result found for module '{module_type}'. Run the module first via POST /api/ai/run/{module_type}.",
-        )
+        result = _DEFAULT_RESULTS.get(module_type, {})
+        logger.info("No cached result for '%s' — returning safe defaults", module_type)
     return result
 
 

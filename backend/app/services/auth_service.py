@@ -1,12 +1,13 @@
-from datetime import timedelta
+import logging
 
-import requests
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.core.security import create_access_token, create_refresh_token, create_token, decode_token, hash_password, verify_password
+from app.core.firebase_admin import get_firebase_auth
+
+logger = logging.getLogger(__name__)
+from app.core.security import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
 from app.models.faculty import FacultyProfile
 from app.models.parent import ParentProfile
 from app.models.placement import PlacementProfile
@@ -106,51 +107,48 @@ def refresh_access_token(db: Session, refresh_token: str) -> dict[str, str]:
     return issue_tokens(user)
 
 
-def verify_google_access_token(access_token: str) -> dict:
-    response = requests.get(
-        "https://www.googleapis.com/oauth2/v3/userinfo",
-        headers={"Authorization": f"Bearer {access_token}"},
-        timeout=10,
-    )
-    if response.status_code != 200:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token")
-    info = response.json()
-    if "sub" not in info or "email" not in info:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token response")
-    return info
-
-
-def create_google_temp_token(email: str, full_name: str, picture: str, google_sub: str) -> str:
-    return create_token(
-        subject=email,
-        token_type="google_temp",
-        expires_delta=timedelta(minutes=10),
-        extra_payload={
-            "email": email,
-            "full_name": full_name,
-            "picture": picture,
-            "google_sub": google_sub,
-        },
-    )
-
-
-def decode_google_temp_token(token: str) -> dict:
+def verify_firebase_token(id_token: str) -> dict:
+    firebase_auth = get_firebase_auth()
+    if firebase_auth is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Google sign-in is not configured. Use email/password login or contact the administrator.",
+        )
     try:
-        payload = decode_token(token)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired temp token") from exc
-    if payload.get("type") != "google_temp":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid temp token type")
-    return payload
+        decoded = firebase_auth.verify_id_token(id_token)
+    except Exception as exc:
+        logger.error("Firebase token verification failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Google token: {exc}",
+        ) from exc
 
-
-def get_google_redirect_response(user: User) -> dict:
-    tokens = issue_tokens(user)
     return {
-        "status": "login",
-        "access_token": tokens["access_token"],
-        "refresh_token": tokens["refresh_token"],
-        "token_type": "bearer",
-        "user": tokens["user"],
-        "role": user.role,
+        "sub": decoded.get("uid", decoded.get("sub")),
+        "email": decoded.get("email", ""),
+        "full_name": decoded.get("name", ""),
+        "picture": decoded.get("picture", ""),
     }
+
+
+def create_google_user(db: Session, email: str, full_name: str, picture: str, google_sub: str, role: UserRole) -> User:
+    import bcrypt
+    random_hash = bcrypt.hashpw(b"unused", bcrypt.gensalt()).decode("utf-8")
+
+    user = User(
+        full_name=full_name or email.split("@")[0],
+        email=email.lower(),
+        hashed_password=random_hash,
+        role=role,
+        is_active=True,
+        is_verified=True,
+        auth_provider="google",
+        google_sub=google_sub,
+        profile_picture=picture,
+    )
+    db.add(user)
+    db.flush()
+    create_role_profile(db, user)
+    db.commit()
+    db.refresh(user)
+    return user

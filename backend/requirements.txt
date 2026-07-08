@@ -9,6 +9,7 @@ python-jose[cryptography]==3.3.0
 bcrypt==4.2.1
 python-multipart==0.0.20
 google-auth==2.38.0
+firebase-admin==6.6.0
 requests==2.32.3
 httpx==0.28.1
 pytest==8.3.4

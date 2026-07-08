@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -13,8 +13,17 @@ import {
   Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { useAuth } from "../../context/AuthContext";
-import { useStudentProfile } from "../../context/StudentProfileContext";
-import { fetchMyEligibility } from "../../api/company";
+import {
+  calculateCompanyEligibility,
+  calculateCompanyEligibilityScore,
+  calculateCodingScore,
+  calculateInterviewReadiness,
+  calculateOverallPlacementScore,
+  calculateResumeScore,
+  calculateSkillScore,
+  useStudentProfile,
+} from "../../context/StudentProfileContext";
+import { fetchCompanies } from "../../api/company";
 import { AnimatedCounter } from "../../components/ui/AnimatedCounter";
 
 const PURPLE = "#6D5DF6";
@@ -22,7 +31,7 @@ const PURPLE_LIGHT = "#8B7BF7";
 const PURPLE_BG = "rgba(109,93,246,0.08)";
 const PURPLE_BG_STRONG = "rgba(109,93,246,0.14)";
 
-function getStatus(score: number | null) {
+function getStatus(score: number | null | undefined) {
   if (score == null) return { label: "Not Set", color: "#9CA3AF", emoji: "—" };
   if (score >= 80) return { label: "Excellent", color: "#22C55E", emoji: "🚀" };
   if (score >= 60) return { label: "Good", color: "#F59E0B", emoji: "💪" };
@@ -77,31 +86,45 @@ const EVENTS = [
 ];
 
 export function StudentPlacementDashboard() {
-  const { profile, completion } = useStudentProfile();
+  const { profile, completion, intelligence, loading } = useStudentProfile();
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const p = profile;
-  const readiness = p?.placement_readiness_score ?? 0;
-  const resumeScore = p?.resume_score ?? 0;
-  const codingScore = p?.coding_score ?? 0;
-  const skillScore = p?.skill_score ?? 0;
-  const mockScore = p?.mock_interview_score ?? 0;
-  const commScore = p?.communication_score ?? 0;
-  const eligibleCos = p?.eligible_companies ?? 0;
-  const appsSent = p?.applications ?? 0;
+  useEffect(() => {
+    if (!profile) return;
+    const source = profile as any;
+    console.log("PROFILE_USED_FOR_PLACEMENT", profile, {
+      githubUrl: source.githubUrl ?? source.github_url,
+      leetcodeUrl: source.leetcodeUrl ?? source.leetcode_url,
+      linkedinUrl: source.linkedinUrl ?? source.linkedin_url,
+      skills: source.skills ?? source.skills_data ?? source.skillsData,
+      projects: source.projects ?? source.projects_data,
+      resume: source.resume ?? source.resume_url ?? source.resumeUrl ?? source.resume_text,
+      targetRole: source.targetRole ?? source.preferredRole ?? source.preferred_role,
+      cgpa: source.cgpa,
+      attendance: source.attendance ?? source.attendance_percentage ?? source.attendancePercentage,
+    });
+  }, [profile]);
+  const resumeScore = p ? calculateResumeScore(p) : null;
+  const codingScore = p ? calculateCodingScore(p) : null;
+  const skillScore = p ? calculateSkillScore(p) : null;
+  const mockScore = p ? calculateInterviewReadiness(p) : null;
+  const readiness = p ? calculateOverallPlacementScore(p) : null;
+  const companyEligibilityScore = p ? calculateCompanyEligibilityScore(p) : null;
+  const commScore = p?.communication_score ?? null;
+  const appsSent = p?.applications ?? null;
 
   const status = getStatus(readiness);
-  const overallPlacementScore = Math.round(
-    (readiness + resumeScore + codingScore + skillScore + mockScore + commScore) / 6
-  );
+  const overallPlacementScore = p ? calculateOverallPlacementScore(p) : null;
 
-  const { data: eligibilityData } = useQuery({
-    queryKey: ["student-company-eligibility"],
-    queryFn: fetchMyEligibility,
+  const { data: companies } = useQuery({
+    queryKey: ["companies-for-student-eligibility"],
+    queryFn: fetchCompanies,
     staleTime: 30_000,
     enabled: !!profile,
   });
+  const eligibilityData = useMemo(() => p ? calculateCompanyEligibility(p, companies ?? []) : [], [p, companies]);
 
   const dreamCompanies = useMemo(() => {
     const valid = (eligibilityData ?? []).filter((e) =>
@@ -116,67 +139,64 @@ export function StudentPlacementDashboard() {
     { label: "Coding Score", value: codingScore, icon: Code2, color: "#8B5CF6", suffix: "%" },
     { label: "Skill Score", value: skillScore, icon: BookOpen, color: "#22C55E", suffix: "%" },
     { label: "Mock Interview", value: mockScore, icon: Brain, color: "#F59E0B", suffix: "%" },
-    { label: "Company Eligibility", value: eligibleCos, icon: Trophy, color: "#EF4444", suffix: "" },
+    { label: "Company Eligibility", value: companyEligibilityScore, icon: Trophy, color: "#EF4444", suffix: "%" },
     { label: "Overall Score", value: overallPlacementScore, icon: Award, color: "#6D5DF6", suffix: "%" },
-  ], [resumeScore, codingScore, skillScore, mockScore, eligibleCos, overallPlacementScore]);
+  ], [resumeScore, codingScore, skillScore, mockScore, companyEligibilityScore, overallPlacementScore]);
 
   const skillRadarData = useMemo(() => [
-    { skill: "Coding", score: Math.max(10, codingScore || 40) },
-    { skill: "DSA", score: Math.max(10, Math.round((codingScore || 40) * 0.85)) },
-    { skill: "Projects", score: Math.max(10, Math.round((resumeScore || 40) * 0.9)) },
-    { skill: "Communication", score: Math.max(10, commScore || 40) },
-    { skill: "Resume", score: Math.max(10, resumeScore || 40) },
-    { skill: "Interview", score: Math.max(10, mockScore || 40) },
+    { skill: "Coding", score: codingScore ?? 0 },
+    { skill: "DSA", score: codingScore != null ? Math.round(codingScore * 0.85) : 0 },
+    { skill: "Projects", score: intelligence?.projectQuality ?? 0 },
+    { skill: "Communication", score: commScore ?? 0 },
+    { skill: "Resume", score: resumeScore ?? 0 },
+    { skill: "Interview", score: mockScore ?? 0 },
   ], [codingScore, resumeScore, commScore, mockScore]);
 
-  const weeklyProgressData = useMemo(() => [
-    { week: "W1", readiness: Math.max(0, readiness - 24), overall: Math.max(0, overallPlacementScore - 22) },
-    { week: "W2", readiness: Math.max(0, readiness - 18), overall: Math.max(0, overallPlacementScore - 16) },
-    { week: "W3", readiness: Math.max(0, readiness - 12), overall: Math.max(0, overallPlacementScore - 11) },
-    { week: "W4", readiness: Math.max(0, readiness - 7), overall: Math.max(0, overallPlacementScore - 6) },
-    { week: "W5", readiness: Math.max(0, readiness - 3), overall: Math.max(0, overallPlacementScore - 3) },
-    { week: "W6", readiness, overall: overallPlacementScore },
-  ], [readiness, overallPlacementScore]);
+  const weeklyProgressData = useMemo(() => (intelligence?.weeklyProgress ?? []).map((w) => ({ week: w.week, readiness: w.score, overall: w.score })), [intelligence]);
 
   const getJourneyProgress = useCallback((key: string) => {
     switch (key) {
-      case "resume": return resumeScore;
-      case "skills": return skillScore;
-      case "coding": return codingScore;
-      case "mock": return mockScore;
-      case "eligibility": return Math.min(100, eligibleCos * 16);
-      case "ready": return readiness;
+      case "resume": return resumeScore ?? 0;
+      case "skills": return skillScore ?? 0;
+      case "coding": return codingScore ?? 0;
+      case "mock": return mockScore ?? 0;
+      case "eligibility": return companyEligibilityScore ?? 0;
+      case "ready": return readiness ?? 0;
       default: return 0;
     }
-  }, [resumeScore, skillScore, codingScore, mockScore, eligibleCos, readiness]);
+  }, [resumeScore, skillScore, codingScore, mockScore, companyEligibilityScore, readiness]);
 
   const aiTasks = useMemo(() => {
     const tasks: { text: string; priority: "high" | "medium" | "low" }[] = [];
-    if (resumeScore < 75) tasks.push({ text: "Optimize your resume for ATS — target 80%+", priority: "high" });
-    if (codingScore < 70) tasks.push({ text: `Complete ${Math.round((70 - codingScore) * 2)} more coding problems this week`, priority: "high" });
-    if (mockScore < 60) tasks.push({ text: "Book a mock interview session to boost confidence", priority: "medium" });
-    if (skillScore < 65) tasks.push({ text: "Focus on skill development — practice core technologies", priority: "medium" });
-    if (commScore < 60) tasks.push({ text: "Improve communication skills for HR rounds", priority: "low" });
-    if (tasks.length === 0) tasks.push({ text: "You're on track! Keep up the great work.", priority: "low" });
+    if (resumeScore == null) tasks.push({ text: "Upload or paste your resume for ATS scoring", priority: "high" });
+    else if (resumeScore < 75) tasks.push({ text: "Optimize your resume for ATS with stronger role keywords", priority: "high" });
+    if (codingScore == null) tasks.push({ text: "Connect GitHub or LeetCode to calculate coding readiness", priority: "high" });
+    else if (codingScore < 70) tasks.push({ text: "Increase DSA consistency and publish one project update this week", priority: "high" });
+    if (mockScore == null || mockScore < 60) tasks.push({ text: "Book a mock interview session to boost confidence", priority: "medium" });
+    if (skillScore == null || skillScore < 65) tasks.push({ text: "Focus on role-critical skill development", priority: "medium" });
+    if (commScore != null && commScore < 60) tasks.push({ text: "Improve communication skills for HR rounds", priority: "low" });
+    if (tasks.length === 0) tasks.push({ text: "You are on track. Keep profile, coding, and interview practice current.", priority: "low" });
     if (tasks.length < 3) tasks.push({ text: "Review company eligibility criteria & prepare accordingly", priority: "medium" });
     return tasks.slice(0, 5);
   }, [resumeScore, codingScore, mockScore, skillScore, commScore]);
 
   const nextGoal = useMemo(() => {
+    if (readiness == null) return "Complete profile connections to calculate readiness";
     if (readiness < 80) return `Reach 80% Placement Readiness (${Math.round(80 - readiness)}% to go)`;
-    if (codingScore < 80) return "Push Coding Score above 80%";
-    if (resumeScore < 85) return "Get Resume Score to 85%+";
-    if (mockScore < 75) return "Aim for 75%+ in Mock Interviews";
-    return "You're fully prepared — explore dream companies!";
+    if (codingScore != null && codingScore < 80) return "Push Coding Score above 80%";
+    if (resumeScore != null && resumeScore < 85) return "Get Resume Score to 85%+";
+    if (mockScore != null && mockScore < 75) return "Aim for 75%+ in Mock Interviews";
+    return "Fully prepared. Explore dream companies.";
   }, [readiness, codingScore, resumeScore, mockScore]);
 
   const leaderboardRank = useMemo(() => {
-    if (!readiness) return { rank: "—", total: "—", label: "No data" };
+    if (readiness == null) return { rank: "—", total: "—", label: "Syncing" };
     const estimatedRank = Math.max(1, Math.round(50 - readiness * 0.5));
     return { rank: String(estimatedRank), total: "120", label: `Top ${Math.round((estimatedRank / 120) * 100)}%` };
   }, [readiness]);
 
-  if (!profile) return null;
+  if (loading) return <div className="h-64 animate-pulse rounded-[28px] bg-white" />;
+  if (!profile || !intelligence) return null;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-[1320px] space-y-6 pb-16">
@@ -215,11 +235,11 @@ export function StudentPlacementDashboard() {
                 <motion.circle cx="70" cy="70" r="60" fill="none" stroke={status.color} strokeWidth="8" strokeLinecap="round"
                   strokeDasharray={`${2 * Math.PI * 60}`}
                   initial={{ strokeDashoffset: 2 * Math.PI * 60 }}
-                  animate={{ strokeDashoffset: 2 * Math.PI * 60 * (1 - readiness / 100) }}
+                  animate={{ strokeDashoffset: 2 * Math.PI * 60 * (1 - (readiness ?? 0) / 100) }}
                   transition={{ duration: 1.5, ease: "easeOut" }} />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-[#111827] tabular-nums">{readiness}%</span>
+                <span className="text-3xl font-bold text-[#111827] tabular-nums">{readiness == null ? "Syncing" : `${readiness}%`}</span>
                 <span className="text-[9px] font-semibold uppercase tracking-wider text-[#6B7280]">Readiness</span>
               </div>
             </div>
@@ -283,14 +303,18 @@ export function StudentPlacementDashboard() {
             </div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280]">{m.label}</p>
             <div className="mt-1 flex items-baseline gap-1">
-              <AnimatedCounter value={m.value} suffix={m.suffix} className="text-xl font-bold text-[#111827]" />
+              {m.value == null ? (
+                <span className="text-xl font-bold text-[#111827]">Syncing</span>
+              ) : (
+                <AnimatedCounter value={m.value} suffix={m.suffix} className="text-xl font-bold text-[#111827]" />
+              )}
               <span className="text-xs font-semibold text-[#22C55E]">
-                {m.value > 0 ? "+" + Math.round(m.value * 0.12) : ""}
+                {m.value != null && m.value > 0 ? "+" + Math.round(m.value * 0.12) : ""}
               </span>
             </div>
             <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-[#F3F4F6]">
               <motion.div className="h-full rounded-full" style={{ background: m.color }}
-                initial={{ width: 0 }} animate={{ width: `${Math.min(100, m.value)}%` }} transition={{ duration: 1, delay: i * 0.1, ease: "easeOut" }} />
+                initial={{ width: 0 }} animate={{ width: `${Math.min(100, m.value ?? 0)}%` }} transition={{ duration: 1, delay: i * 0.1, ease: "easeOut" }} />
             </div>
           </motion.div>
         ))}
@@ -565,7 +589,7 @@ export function StudentPlacementDashboard() {
               </div>
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#F3F4F6]">
                 <motion.div className="h-full rounded-full bg-gradient-to-r from-[#6D5DF6] to-[#8B5CF6]"
-                  initial={{ width: 0 }} animate={{ width: `${Math.max(5, readiness)}%` }} transition={{ duration: 1.2, ease: "easeOut" }} />
+                  initial={{ width: 0 }} animate={{ width: `${Math.max(5, readiness ?? 0)}%` }} transition={{ duration: 1.2, ease: "easeOut" }} />
               </div>
               <p className="mt-1 text-[10px] text-[#9CA3AF]">Based on placement readiness score</p>
             </div>

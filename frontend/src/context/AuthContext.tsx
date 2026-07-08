@@ -1,25 +1,54 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getFirebaseAuth } from "../lib/firebase";
 import { api } from "../api/client";
 import { Role, User } from "../types";
 
-type AuthContextValue = { user: User | null; loading: boolean; login: (email: string, password: string) => Promise<Role>; register: (full_name: string, email: string, password: string, role: Role) => Promise<Role>; logout: () => void; refreshUser: () => Promise<User>; };
+const PUBLIC_PATHS = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/otp"];
+
+type AuthContextValue = {
+  user: User | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<Role>;
+  register: (full_name: string, email: string, password: string, role: Role) => Promise<Role>;
+  googleSignIn: (role?: Role) => Promise<Role>;
+  logout: () => void;
+  refreshUser: () => Promise<User>;
+};
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export const rolePath: Record<Role, string> = { STUDENT: "/app/student", FACULTY: "/app/faculty", PARENT: "/app/parent", PLACEMENT_OFFICER: "/app/placement", ADMIN: "/app/admin" };
+export const rolePath: Record<Role, string> = {
+  STUDENT: "/app/student",
+  FACULTY: "/app/faculty",
+  PARENT: "/app/parent",
+  PLACEMENT_OFFICER: "/app/placement",
+  ADMIN: "/app/admin",
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
   const loadMe = async () => {
     const { data } = await api.get<User>("/auth/me");
     setUser(data);
     localStorage.setItem("user", JSON.stringify(data));
     return data;
   };
+
   useEffect(() => {
-    if (!localStorage.getItem("access_token")) { setLoading(false); return; }
+    if (!localStorage.getItem("access_token")) {
+      setLoading(false);
+      return;
+    }
+    if (PUBLIC_PATHS.includes(window.location.pathname)) {
+      setLoading(false);
+      return;
+    }
     loadMe().catch(() => logout()).finally(() => setLoading(false));
   }, []);
+
   const login = async (email: string, password: string) => {
     const { data } = await api.post("/auth/login", { email, password });
     localStorage.setItem("access_token", data.access_token);
@@ -28,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     return data.role as Role;
   };
+
   const register = async (full_name: string, email: string, password: string, role: Role) => {
     const { data } = await api.post("/auth/register", { full_name, email, password, role });
     localStorage.setItem("access_token", data.access_token);
@@ -36,8 +66,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     return data.role as Role;
   };
-  const logout = () => { localStorage.removeItem("access_token"); localStorage.removeItem("refresh_token"); localStorage.removeItem("user"); setUser(null); };
-  const value = useMemo(() => ({ user, loading, login, register, logout, refreshUser: loadMe }), [user, loading]);
+
+  const googleSignIn = async (role?: Role): Promise<Role> => {
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      throw new Error("Google sign-in is not configured. Please use email/password login.");
+    }
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const firebaseIdToken = await result.user.getIdToken();
+    if (!firebaseIdToken) throw new Error("Failed to get Firebase ID token");
+
+    const body: Record<string, unknown> = { idToken: firebaseIdToken };
+    if (role) body.role = role;
+    const { data } = await api.post("/auth/google", body);
+
+    if (!data.access_token) {
+      throw new Error("Account not found. Please register first.");
+    }
+
+    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("refresh_token", data.refresh_token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+    setUser(data.user);
+    return data.role as Role;
+  };
+
+  const logout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user");
+    setUser(null);
+  };
+
+  const value = useMemo(
+    () => ({ user, loading, login, register, googleSignIn, logout, refreshUser: loadMe }),
+    [user, loading],
+  );
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

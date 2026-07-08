@@ -1,4 +1,5 @@
 export default {
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
@@ -19,9 +20,7 @@ export default {
         glass: "0 8px 32px rgba(108,76,241,0.08)",
         "glass-lg": "0 16px 48px rgba(108,76,241,0.12)",
         glow: "0 0 24px rgba(108,76,241,0.25)",
-      },
-      backdropBlur: {
-        glass: "24px",
+        "glow-lg": "0 0 40px rgba(108,76,241,0.35)",
       },
       animation: {
         "fade-in": "fadeIn 0.5s ease-out forwards",
@@ -31,7 +30,6 @@ export default {
         "pulse-glow": "pulseGlow 2s ease-in-out infinite",
         "float": "float 6s ease-in-out infinite",
         "shimmer": "shimmer 2s linear infinite",
-        "count-up": "countUp 1.5s ease-out forwards",
       },
       keyframes: {
         fadeIn: { "0%": { opacity: "0" }, "100%": { opacity: "1" } },

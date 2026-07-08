@@ -17,13 +17,26 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry && localStorage.getItem("refresh_token")) {
+    if (!original?._retry && error.response?.status === 401 && localStorage.getItem("refresh_token")) {
+      if (original?.url?.includes("/auth/refresh-token")) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+        return Promise.reject(error);
+      }
       original._retry = true;
-      const { data } = await api.post("/auth/refresh-token", { refresh_token: localStorage.getItem("refresh_token") });
-      localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("refresh_token", data.refresh_token);
-      original.headers.Authorization = `Bearer ${data.access_token}`;
-      return api(original);
+      try {
+        const { data } = await api.post("/auth/refresh-token", { refresh_token: localStorage.getItem("refresh_token") });
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+        original.headers.Authorization = `Bearer ${data.access_token}`;
+        return api(original);
+      } catch {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+        return Promise.reject(error);
+      }
     }
     return Promise.reject(error);
   }

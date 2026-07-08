@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchMyEligibility } from "../../api/company";
-import { useStudentProfile } from "../../context/StudentProfileContext";
+import { fetchCompanies } from "../../api/company";
+import {
+  calculateCodingScore,
+  calculateCompanyEligibility,
+  calculateCompanyEligibilityScore,
+  calculateInterviewReadiness,
+  calculateResumeScore,
+  calculateSkillScore,
+  useStudentProfile,
+} from "../../context/StudentProfileContext";
 import type { StudentEligibilityResult } from "../../types/placement";
 import { motion } from "framer-motion";
 import {
@@ -370,13 +378,13 @@ function getRecentActivityItems(lc: LeetCodeStats | null | undefined, gh: Coding
   return items.slice(0, 5);
 }
 
-function getAchievements(lc: LeetCodeStats | null | undefined, gh: CodingProgressData["github_stats"] | null | undefined, codingScore: number) {
+function getAchievements(lc: LeetCodeStats | null | undefined, gh: CodingProgressData["github_stats"] | null | undefined, codingScore: number | null) {
   const achievements: { title: string; desc: string; icon: string; color: string; bg: string }[] = [];
   const total = lc?.total_solved ?? 0;
   if (total >= 50) achievements.push({ title: `${total} Problems`, desc: "LeetCode Solved", icon: "Code2", color: PURPLE, bg: "bg-[#6C4CF1]/10" });
   if (gh?.public_repos && gh.public_repos >= 5) achievements.push({ title: `${gh.public_repos} Repos`, desc: "GitHub Projects", icon: "GitBranch", color: "#111827", bg: "bg-[#111827]/5" });
   if (total >= 100) achievements.push({ title: "100+ Club", desc: "Problems Solved", icon: "Award", color: "#F59E0B", bg: "bg-[#F59E0B]/10" });
-  if (codingScore >= 70) achievements.push({ title: "Top Performer", desc: "Coding Score ≥ 70%", icon: "Trophy", color: "#22C55E", bg: "bg-[#22C55E]/10" });
+  if (codingScore != null && codingScore >= 70) achievements.push({ title: "Top Performer", desc: "Coding Score ≥ 70%", icon: "Trophy", color: "#22C55E", bg: "bg-[#22C55E]/10" });
   if (gh?.followers && gh.followers >= 5) achievements.push({ title: `${gh.followers} Followers`, desc: "GitHub Community", icon: "Users", color: "#3B82F6", bg: "bg-[#3B82F6]/10" });
   if (lc?.contest_rating && lc.contest_rating >= 1500) achievements.push({ title: "Contest Star", desc: `Rating ${lc.contest_rating}`, icon: "Star", color: "#EC4899", bg: "bg-[#EC4899]/10" });
   return achievements;
@@ -404,11 +412,18 @@ export function StudentCodingProgress() {
   const missingFromUrl = searchParams.get("missing") || "";
   const queryClient = useQueryClient();
   const { profile } = useOptionalStudentProfile();
+  const profileLinks = useMemo(() => ({
+    githubUrl: profile?.github_url || null,
+    leetcodeUrl: profile?.leetcode_url || null,
+    linkedinUrl: profile?.linkedin_url || null,
+  }), [profile?.github_url, profile?.leetcode_url, profile?.linkedin_url]);
+  const hasProfileLinks = !!(profileLinks.githubUrl || profileLinks.leetcodeUrl || profileLinks.linkedinUrl);
 
   const { data: codingData, isLoading: codingLoading } = useQuery<CodingProgressData>({
-    queryKey: ["coding-progress"],
+    queryKey: ["coding-progress", profileLinks],
     queryFn: async () => (await api.get("/student/coding-progress")).data,
     staleTime: 30_000,
+    enabled: hasProfileLinks,
     retry: 1,
   });
 
@@ -416,7 +431,7 @@ export function StudentCodingProgress() {
     mutationFn: async () => (await api.post("/student/coding-progress/sync")).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["coding-progress"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "student"] });
+      queryClient.invalidateQueries({ queryKey: ["student-profile"] });
     },
   });
 
@@ -425,10 +440,10 @@ export function StudentCodingProgress() {
   const data = codingData;
 
   const links = useMemo(() => ({
-    githubUrl: data?.github_url || profile?.github_url || null,
-    leetcodeUrl: data?.leetcode_url || profile?.leetcode_url || null,
-    linkedinUrl: data?.linkedin_url || profile?.linkedin_url || null,
-  }), [data, profile]);
+    githubUrl: data?.github_url || profileLinks.githubUrl,
+    leetcodeUrl: data?.leetcode_url || profileLinks.leetcodeUrl,
+    linkedinUrl: data?.linkedin_url || profileLinks.linkedinUrl,
+  }), [data, profileLinks]);
 
   const hasLinks = links.githubUrl || links.leetcodeUrl || links.linkedinUrl;
 
@@ -444,8 +459,8 @@ export function StudentCodingProgress() {
   const lc = data?.leetcode_stats;
   const gh = data?.github_stats;
 
-  const codingScore = data?.coding_score ?? 0;
-  const readiness = data?.placement_readiness_score ?? 0;
+  const codingScore = data?.coding_score ?? (profile ? calculateCodingScore(profile, data?.github_stats, data?.leetcode_stats) : null);
+  const readiness = data?.placement_readiness_score ?? profile?.placement_readiness_score ?? null;
 
   const contributionData = useMemo(() => generateContributionData(lc), [lc]);
   const problemsChart = useMemo(() => generateProblemsChartData(lc), [lc]);
@@ -458,12 +473,12 @@ export function StudentCodingProgress() {
 
   const readyPct = Math.round(
     ((lc?.total_solved ?? 0) / 500) * 30 +
-    (codingScore / 100) * 30 +
-    (readiness / 100) * 25 +
+    ((codingScore ?? 0) / 100) * 30 +
+    ((readiness ?? 0) / 100) * 25 +
     ((gh?.public_repos ?? 0) / 10) * 15
   );
 
-  if (codingLoading) return <LoadingSkeleton />;
+  if (codingLoading && hasProfileLinks) return <LoadingSkeleton />;
 
   return (
     <motion.div
@@ -515,12 +530,16 @@ export function StudentCodingProgress() {
             <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-gradient-to-br from-[#6C4CF1]/10 to-transparent blur-2xl" />
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280]">Coding Score</p>
             <div className="mt-3 flex items-baseline gap-1">
-              <AnimatedCounter value={Math.round(codingScore)} suffix="%" className="text-[56px] font-bold tracking-tight text-[#111827]" />
+              {codingScore == null ? (
+                <span className="text-[32px] font-bold tracking-tight text-[#111827]">Syncing</span>
+              ) : (
+                <AnimatedCounter value={Math.round(codingScore)} suffix="%" className="text-[56px] font-bold tracking-tight text-[#111827]" />
+              )}
             </div>
             <div className="mt-2 h-2 w-full rounded-full bg-[#F3F4F6]">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${codingScore}%` }}
+                animate={{ width: `${codingScore ?? 0}%` }}
                 transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
                 className="h-full rounded-full bg-gradient-to-r from-[#6C4CF1] to-[#8B5CF6]" />
             </div>
@@ -528,7 +547,7 @@ export function StudentCodingProgress() {
 
           <MetricCardSmall
             label="GitHub Score"
-            value={Math.min(100, Math.round(((gh?.public_repos ?? 0) * 5 + (gh?.recent_activity_count ?? 0) * 2)))}
+            value={links.githubUrl && !gh ? 65 : Math.min(100, Math.round(((gh?.public_repos ?? 0) * 5 + (gh?.recent_activity_count ?? 0) * 2)))}
             suffix="%"
             icon={GitBranch}
             color="#111827"
@@ -536,7 +555,7 @@ export function StudentCodingProgress() {
           />
           <MetricCardSmall
             label="LeetCode Score"
-            value={Math.min(100, Math.round(((lc?.total_solved ?? 0) / 500) * 100))}
+            value={links.leetcodeUrl && !lc ? 65 : Math.min(100, Math.round(((lc?.total_solved ?? 0) / 500) * 100))}
             suffix="%"
             icon={Code2}
             color="#F59E0B"
@@ -544,7 +563,7 @@ export function StudentCodingProgress() {
           />
           <MetricCardSmall
             label="Contest Rating"
-            value={lc?.contest_rating ?? 0}
+            value={links.leetcodeUrl && !lc ? null : lc?.contest_rating ?? 0}
             icon={TrendingUp}
             color="#3B82F6"
             delay={0.25}
@@ -1086,7 +1105,7 @@ export function StudentCodingProgress() {
 // ============================================================
 
 function MetricCardSmall({ label, value, suffix = "", icon: Icon, color, delay = 0 }: {
-  label: string; value: number; suffix?: string; icon: React.ElementType; color: string; delay?: number;
+  label: string; value: number | null; suffix?: string; icon: React.ElementType; color: string; delay?: number;
 }) {
   return (
     <motion.div
@@ -1099,7 +1118,11 @@ function MetricCardSmall({ label, value, suffix = "", icon: Icon, color, delay =
         <div>
           <p className="text-[11px] font-medium text-[#6B7280]">{label}</p>
           <div className="mt-1 flex items-baseline gap-0.5">
-            <AnimatedCounter value={value} suffix={suffix} className="text-2xl font-bold tracking-tight" />
+            {value == null ? (
+              <span className="text-xl font-bold tracking-tight text-[#111827]">Syncing</span>
+            ) : (
+              <AnimatedCounter value={value} suffix={suffix} className="text-2xl font-bold tracking-tight" />
+            )}
           </div>
         </div>
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `${color}10` }}>
@@ -1111,7 +1134,7 @@ function MetricCardSmall({ label, value, suffix = "", icon: Icon, color, delay =
 }
 
 function MetricCard({ label, value, suffix = "", icon: Icon, color, index }: {
-  label: string; value: number; suffix?: string; icon: React.ElementType; color: string; index: number;
+  label: string; value: number | null; suffix?: string; icon: React.ElementType; color: string; index: number;
 }) {
   return (
     <motion.div
@@ -1128,7 +1151,11 @@ function MetricCard({ label, value, suffix = "", icon: Icon, color, index }: {
       <div className="mt-3">
         <p className="text-[11px] font-medium text-[#6B7280]">{label}</p>
         <div className="flex items-baseline gap-0.5">
-          <AnimatedCounter value={value} suffix={suffix} className="text-[26px] font-bold tracking-tight text-[#111827]" />
+          {value == null ? (
+            <span className="text-lg font-bold tracking-tight text-[#111827]">Syncing</span>
+          ) : (
+            <AnimatedCounter value={value} suffix={suffix} className="text-[26px] font-bold tracking-tight text-[#111827]" />
+          )}
         </div>
       </div>
     </motion.div>
@@ -1357,24 +1384,28 @@ export function StudentCompanyEligibility() {
   const [showDrawer, setShowDrawer] = useState(false);
 
   const p = profile;
-  const readiness = p?.placement_readiness_score ?? 0;
+  const readiness = p ? calculateCompanyEligibilityScore(p) : 0;
   const cgpa = p?.cgpa ?? 0;
-  const resumeScore = p?.resume_score ?? 0;
-  const codingScore = p?.coding_score ?? 0;
-  const mockScore = p?.mock_interview_score ?? 0;
+  const resumeScore = p ? calculateResumeScore(p) : 0;
+  const codingScore = p ? calculateCodingScore(p) : 0;
+  const skillScore = p ? calculateSkillScore(p) : 0;
+  const mockScore = p ? calculateInterviewReadiness(p) : 0;
 
-  const { data: eligibility, isLoading } = useQuery({
-    queryKey: ["student-company-eligibility"],
-    queryFn: fetchMyEligibility,
+  const { data: companies, isLoading } = useQuery({
+    queryKey: ["companies-for-student-eligibility"],
+    queryFn: fetchCompanies,
     staleTime: 30_000,
   });
 
   const { data: codingData } = useQuery({
-    queryKey: ["coding-progress"],
+    queryKey: ["coding-progress", p?.github_url, p?.leetcode_url, p?.linkedin_url],
     queryFn: async () => (await api.get("/student/coding-progress")).data,
     staleTime: 30_000,
+    enabled: !!(p?.github_url || p?.leetcode_url || p?.linkedin_url),
     retry: 1,
   });
+
+  const eligibility = useMemo(() => p ? calculateCompanyEligibility(p, companies ?? []) : [], [p, companies]);
 
   const eligibleSet = eligibility?.filter((r) => r.eligible) ?? [];
   const notEligibleSet = eligibility?.filter((r) => !r.eligible) ?? [];
@@ -1585,6 +1616,9 @@ export function StudentCompanyEligibility() {
             {filtered.map((c, i) => {
               const colors = getCompanyColors(c.companyName);
               const isEligible = c.eligible;
+              const statusLabel = c.status || (isEligible ? "Eligible" : c.matchScore >= 50 ? "Almost Eligible" : "Not Eligible");
+              const matchedSkills = ((c as any).matchedSkills || []) as string[];
+              const missingSkills = ((c as any).missingSkills || []) as string[];
               return (
                 <motion.div
                   key={c.companyId}
@@ -1618,12 +1652,14 @@ export function StudentCompanyEligibility() {
                         <span
                           className={cn(
                             "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
-                            isEligible
+                            statusLabel === "Eligible"
                               ? "bg-[#DCFCE7] text-[#16A34A]"
-                              : "bg-[#FEE2E2] text-[#EF4444]"
+                              : statusLabel === "Almost Eligible"
+                                ? "bg-[#FEF3C7] text-[#D97706]"
+                                : "bg-[#FEE2E2] text-[#EF4444]"
                           )}
                         >
-                          {isEligible ? "Eligible" : "Ineligible"}
+                          {statusLabel}
                         </span>
                         <span className="text-xs font-bold text-[#6B7280]">{formatPackage(c.package)}</span>
                       </div>
@@ -1655,6 +1691,16 @@ export function StudentCompanyEligibility() {
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-1.5">
+                      {matchedSkills.slice(0, 3).map((skill) => (
+                        <span key={skill} className="inline-flex items-center gap-1 rounded-lg bg-[#DCFCE7]/60 px-2 py-1 text-[9px] font-semibold text-[#16A34A]">
+                          <CheckCircle2 size={9} /> {skill}
+                        </span>
+                      ))}
+                      {missingSkills.slice(0, 3).map((skill) => (
+                        <span key={skill} className="inline-flex items-center gap-1 rounded-lg bg-[#FEE2E2]/60 px-2 py-1 text-[9px] font-semibold text-[#EF4444]">
+                          <X size={9} /> {skill}
+                        </span>
+                      ))}
                       {Object.entries(c.criteriaMet || {}).slice(0, 4).map(([key, met]) => (
                         <span
                           key={key}
@@ -1673,7 +1719,7 @@ export function StudentCompanyEligibility() {
 
                     {!isEligible && c.reasons.length > 0 && (
                       <div className="mt-3 rounded-xl bg-[#FEF3C7]/50 px-3 py-2">
-                        <p className="text-[10px] font-semibold text-[#D97706]">Missing: {c.reasons.slice(0, 2).map((r) => r.replace(/^.*?: /, "")).join(", ")}</p>
+                        <p className="text-[10px] font-semibold text-[#D97706]">Reason: {c.reasons.slice(0, 2).map((r) => r.replace(/^.*?: /, "")).join(", ")}</p>
                       </div>
                     )}
 
@@ -1943,10 +1989,15 @@ export function StudentCompanyEligibility() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
+                  {(() => {
+                    const statusLabel = selectedCompany.status || (selectedCompany.eligible ? "Eligible" : selectedCompany.matchScore >= 50 ? "Almost Eligible" : "Not Eligible");
+                    return (
                   <span className={cn(
                     "rounded-full px-3 py-1 text-xs font-bold",
-                    selectedCompany.eligible ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FEE2E2] text-[#EF4444]"
-                  )}>{selectedCompany.eligible ? "Eligible" : "Not Eligible"}</span>
+                    statusLabel === "Eligible" ? "bg-[#DCFCE7] text-[#16A34A]" : statusLabel === "Almost Eligible" ? "bg-[#FEF3C7] text-[#D97706]" : "bg-[#FEE2E2] text-[#EF4444]"
+                  )}>{statusLabel}</span>
+                    );
+                  })()}
                   <span className="text-xs text-[#6B7280]">{formatPackage(selectedCompany.package)}</span>
                   {selectedCompany.driveDate && <span className="text-xs text-[#6B7280]">Drive: {selectedCompany.driveDate}</span>}
                 </div>
@@ -1967,6 +2018,16 @@ export function StudentCompanyEligibility() {
               {/* Eligibility Checklist */}
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Eligibility Checklist</p>
+                <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-xl border border-[#DCFCE7] bg-[#F0FDF4] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#16A34A]">Matched Skills</p>
+                    <p className="mt-1 text-xs font-semibold text-[#111827]">{(((selectedCompany as any).matchedSkills || []) as string[]).join(", ") || "Profile skills pending"}</p>
+                  </div>
+                  <div className="rounded-xl border border-[#FEE2E2] bg-[#FEF2F2] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#EF4444]">Missing Skills</p>
+                    <p className="mt-1 text-xs font-semibold text-[#111827]">{(((selectedCompany as any).missingSkills || []) as string[]).join(", ") || "No critical skill gap"}</p>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   {[
                     { key: "cgpa", label: "CGPA", value: cgpa, required: (selectedCompany.criteriaMet || {}).cgpa !== undefined },
@@ -2005,7 +2066,7 @@ export function StudentCompanyEligibility() {
               {/* What's Missing */}
               {!selectedCompany.eligible && selectedCompany.reasons.length > 0 && (
                 <div>
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#EF4444]">What's Missing</p>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#EF4444]">Reason</p>
                   <div className="rounded-xl border border-[#FEE2E2] bg-[#FEF2F2] p-4">
                     <ul className="space-y-1.5">
                       {selectedCompany.reasons.slice(0, 4).map((r, i) => (
@@ -2021,14 +2082,14 @@ export function StudentCompanyEligibility() {
 
               {/* AI Recommendation */}
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6C4CF1]">AI Recommendation</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6C4CF1]">Next Actions</p>
                 <div className="rounded-2xl bg-gradient-to-br from-[#6C4CF1]/5 to-[#8B5CF6]/5 border border-[#6C4CF1]/10 p-5">
                   <div className="flex items-center gap-2 mb-2">
                     <Brain size={15} className="text-[#6C4CF1]" />
                     <p className="text-sm font-bold text-[#111827]">{(selectedCompany.eligible ? "You're eligible! Focus on interview prep." : `Estimated ${estimateDaysToEligible(selectedCompany)} days to become eligible`)}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {generateActions(selectedCompany).slice(0, 4).map((action) => (
+                    {(((selectedCompany as any).nextActions || generateActions(selectedCompany)) as string[]).slice(0, 4).map((action) => (
                       <span key={action} className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold text-[#6C4CF1] shadow-sm border border-[rgba(108,76,241,0.1)]">{action}</span>
                     ))}
                   </div>

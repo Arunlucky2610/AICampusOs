@@ -39,7 +39,6 @@ import {
 import { useOptionalStudentProfile } from "../../context/StudentProfileContext";
 import { cn } from "../../utils/cn";
 import {
-  getLatestResumeAnalysis,
   runResumeAnalyzer,
   type ResumeAnalysisResult,
   type UploadResponse,
@@ -72,7 +71,7 @@ interface ActionItem {
   status: string;
 }
 
-const ACCEPTED_TYPES = ".pdf,.docx";
+const ACCEPTED_TYPES = ".pdf,.doc,.docx";
 const MAX_SIZE = 10 * 1024 * 1024;
 const COMPANY_TARGETS = ["Google", "Microsoft", "Amazon", "TCS", "Deloitte"];
 
@@ -466,9 +465,9 @@ function EmptyState({ onFile, company, role, missing }: { onFile: (f: File) => v
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700 mb-5">
-            <Brain size={12} /> AI Resume Analyzer
-          </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700 mb-5">
+              <Brain size={12} /> Resume Analyzer
+            </div>
 
           {company ? (
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 mb-3">
@@ -476,12 +475,12 @@ function EmptyState({ onFile, company, role, missing }: { onFile: (f: File) => v
             </h1>
           ) : (
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 mb-3">
-              Upload your resume to receive an AI-powered ATS and career analysis.
+              Upload Your Resume
             </h1>
           )}
 
           <p className="text-sm text-slate-500 max-w-md mb-2">
-            Get instant ATS score, skills gap analysis, and personalized recommendations to land more interviews.
+            Upload PDF/DOCX resume to get ATS score, skills analysis, project feedback, and improvement suggestions.
           </p>
 
           {missing && (
@@ -518,6 +517,8 @@ function EmptyState({ onFile, company, role, missing }: { onFile: (f: File) => v
               <p className="mt-1.5 text-sm text-slate-400">or click to browse</p>
               <div className="mt-4 flex items-center justify-center gap-3">
                 <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-medium text-violet-600">PDF</span>
+                <span className="text-slate-300">|</span>
+                <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-medium text-violet-600">DOC</span>
                 <span className="text-slate-300">|</span>
                 <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-medium text-violet-600">DOCX</span>
                 <span className="text-slate-300">|</span>
@@ -560,7 +561,7 @@ function ErrorScreen({ error, fileInfo, backendReason, onRetry, onReset }: { err
 
   const friendlyMessage = backendReason && !backendReason.includes("Temporary") && !backendReason.includes("try again")
     ? backendReason
-    : "Temporary AI service issue. Please retry.";
+    : "Resume analysis failed. Please upload a valid resume and try again.";
 
   return (
     <motion.div
@@ -578,7 +579,7 @@ function ErrorScreen({ error, fileInfo, backendReason, onRetry, onReset }: { err
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 border border-rose-200">
             <AlertTriangle size={20} className="text-rose-500" />
           </div>
-          <h2 className="text-lg font-semibold text-slate-900">Analysis couldn't be completed.</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Resume analysis failed</h2>
           <p className="mt-2 text-sm text-slate-500 leading-relaxed">{friendlyMessage}</p>
 
           <div className="mt-5 flex flex-col gap-2">
@@ -642,15 +643,6 @@ export function StudentResumeAnalyzer() {
   const previewIsPdf = Boolean(resumeUrl && /\.pdf($|\?)/i.test(resumeUrl));
 
   useEffect(() => {
-    getLatestResumeAnalysis().then(res => {
-      if (res && !res.missingData?.length && !res.error) {
-        setAnalysis(res);
-        setStage("results");
-      }
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (stage !== "analyzing") return;
     progressRef.current = 0;
     setScanStep(0);
@@ -678,8 +670,8 @@ export function StudentResumeAnalyzer() {
 
   const handleFileSelected = useCallback(async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!ext || !["pdf", "docx"].includes(ext)) {
-      setError("Unsupported file format. Please upload PDF or DOCX.");
+    if (!ext || !["pdf", "doc", "docx"].includes(ext)) {
+      setError("Unsupported file format. Please upload PDF, DOC, or DOCX.");
       return;
     }
     if (file.size > MAX_SIZE) {
@@ -1174,6 +1166,7 @@ export function StudentResumeAnalyzer() {
               <div className="ml-auto flex gap-2">
                 <button onClick={handleDownloadPdf} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"><Download size={13} /> Download PDF</button>
                 <button onClick={handleCopy} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"><Copy size={13} /> {copied ? "Copied" : "Copy"}</button>
+                <button onClick={handleReset} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"><Upload size={13} /> Reupload</button>
               </div>
             </div>
           </motion.section>

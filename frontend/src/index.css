@@ -4,49 +4,54 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111827; background: #fff; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #111827;
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color .3s ease, color .3s ease;
+}
+
+.dark body { background: #050505; color: #f5f5f5; }
+
 button, input, textarea, select { font: inherit; }
 
-.glass {
-  background: rgba(255,255,255,0.72);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,0.18);
+/* ── Theme transitions ── */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: .2s;
+  transition-timing-function: ease;
 }
-.glass-strong {
-  background: rgba(255,255,255,0.88);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border: 1px solid rgba(255,255,255,0.24);
-}
-.glass-dark {
-  background: rgba(17,24,39,0.72);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,0.06);
-}
-.glass-card {
-  background: rgba(255,255,255,0.78);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.2);
-  box-shadow: 0 8px 32px rgba(108,76,241,0.06);
-}
-.glass-card:hover {
-  background: rgba(255,255,255,0.86);
-  box-shadow: 0 12px 40px rgba(108,76,241,0.1);
-  border-color: rgba(108,76,241,0.15);
-}
+
+/* ── Glass utilities ── */
+.glass { background: rgba(255,255,255,0.72); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.18); }
+.glass-strong { background: rgba(255,255,255,0.88); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid rgba(255,255,255,0.24); }
+.glass-dark { background: rgba(17,24,39,0.72); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.06); }
+.dark .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(24px); border-color: rgba(255,255,255,0.06); }
+.dark .glass-strong { background: rgba(255,255,255,0.08); backdrop-filter: blur(32px); border-color: rgba(255,255,255,0.1); }
+
+.glass-card { background: rgba(255,255,255,0.78); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 8px 32px rgba(108,76,241,0.06); }
+.glass-card:hover { background: rgba(255,255,255,0.86); box-shadow: 0 12px 40px rgba(108,76,241,0.1); border-color: rgba(108,76,241,0.15); }
+.dark .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); border-color: rgba(255,255,255,0.06); box-shadow: 0 8px 32px rgba(108,76,241,0.03); }
+.dark .glass-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(108,76,241,0.2); box-shadow: 0 12px 40px rgba(108,76,241,0.06); }
+
+/* ── Utility classes ── */
 .grid-bg { background-image: linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg,#e5e7eb 1px,transparent 1px); background-size: 48px 48px; }
+.dark .grid-bg { background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px); }
+
 .premium-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .premium-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .premium-scrollbar::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 999px; }
 .premium-scrollbar::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+.dark .premium-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+.dark .premium-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
 
-.gradient-border {
-  position: relative;
-  border-radius: 20px;
-}
+.gradient-border { position: relative; border-radius: 20px; }
 .gradient-border::before {
   content: "";
   position: absolute;
@@ -60,30 +65,19 @@ button, input, textarea, select { font: inherit; }
   pointer-events: none;
 }
 
-.shimmer-bg {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
-}
+.shimmer-bg { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 2s linear infinite; }
+.dark .shimmer-bg { background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%); }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
-.text-gradient {
-  background: linear-gradient(135deg, #6C4CF1, #3B82F6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.text-gradient-purple {
-  background: linear-gradient(135deg, #6C4CF1, #8B5CF6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+.text-gradient { background: linear-gradient(135deg, #6C4CF1, #3B82F6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.text-gradient-purple { background: linear-gradient(135deg, #6C4CF1, #8B5CF6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  html { scroll-behavior: auto; }
+}

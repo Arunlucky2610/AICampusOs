@@ -44,8 +44,8 @@ const loginBenefits = [
 ];
 
 const roleOptions: { value: Role; label: string; desc: string; icon: typeof GraduationCap }[] = [
-  { value: "STUDENT", label: "Student", desc: "Learn \u2022 Grow \u2022 Get Placed", icon: GraduationCap },
-  { value: "FACULTY", label: "Faculty", desc: "Track \u2022 Guide \u2022 Analyze", icon: Users },
+  { value: "STUDENT", label: "Student", desc: "Learn • Grow • Get Placed", icon: GraduationCap },
+  { value: "FACULTY", label: "Faculty", desc: "Track • Guide • Analyze", icon: Users },
   { value: "PARENT", label: "Parent", desc: "Monitor Progress", icon: MessageSquare },
   { value: "PLACEMENT_OFFICER", label: "Placement Officer", desc: "Placement Analytics", icon: BriefcaseBusiness },
   { value: "ADMIN", label: "Admin", desc: "Manage Platform", icon: ShieldCheck },
@@ -88,6 +88,24 @@ function RequiredMark() {
   return <span className="ml-0.5 text-red-500">*</span>;
 }
 
+function Divider() {
+  return <div className="flex items-center gap-3"><div className="h-px flex-1 bg-line" /><span className="text-xs text-muted">OR</span><div className="h-px flex-1 bg-line" /></div>;
+}
+
+function GoogleSignInButton({ onClick, loading, disabled }: { onClick: () => void; loading: boolean; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-line bg-white text-sm font-semibold text-ink shadow-sm transition hover:bg-gray-50 disabled:opacity-50"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      {loading ? "Signing in..." : "Continue with Google"}
+    </button>
+  );
+}
+
 // ===================== LoginPage =====================
 
 export function LoginPage() {
@@ -96,8 +114,9 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { login } = useAuth();
+  const { login, googleSignIn } = useAuth();
   const navigate = useNavigate();
 
   const isFormValid = email.trim() !== "" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password !== "";
@@ -129,6 +148,26 @@ export function LoginPage() {
     }
   }
 
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    setErrors({});
+    try {
+      const userRole = await googleSignIn();
+      navigate(rolePath[userRole]);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || "";
+      if (msg.includes("not configured")) {
+        setErrors({ form: msg });
+      } else if (msg.includes("popup") || msg.includes("window.closed") || msg.includes("cancelled")) {
+        setErrors({ form: "Sign-in popup was blocked or closed. Try allowing popups for this site and try again." });
+      } else {
+        setErrors({ form: msg || "Google sign-in failed. Try using email/password instead." });
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   return <div className="min-h-screen bg-white lg:flex">
     <BackToLanding />
     <LeftPanel title="Welcome back to AI CampusOS" desc="Sign in to access your intelligent campus workspace, personalized dashboard, AI insights, and role-based analytics." benefits={loginBenefits} />
@@ -141,6 +180,10 @@ export function LoginPage() {
             <h2 className="text-2xl font-semibold">Sign in to your workspace</h2>
             <p className="mt-2 text-muted">Continue to your AI CampusOS dashboard.</p>
           </div>
+
+          <GoogleSignInButton onClick={handleGoogleSignIn} loading={googleLoading} />
+
+          <div className="my-6"><Divider /></div>
 
           <form onSubmit={submit} className="space-y-5">
             <div>
@@ -177,6 +220,7 @@ export function LoginPage() {
         </div>
       </motion.div>
     </div>
+
   </div>;
 }
 
@@ -191,12 +235,14 @@ export function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { register } = useAuth();
+  const { register, googleSignIn } = useAuth();
   const navigate = useNavigate();
 
   const isFormValid = name.trim() !== "" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 8 && confirmPassword !== "" && confirmPassword === password && role !== "";
+  const googleEnabled = role !== "";
 
   function getPasswordStrength(pw: string): number {
     if (!pw) return 0;
@@ -259,6 +305,31 @@ export function RegisterPage() {
     }
   }
 
+  async function handleGoogleSignIn() {
+    if (!role) {
+      setErrors({ form: "Please select your role first" });
+      return;
+    }
+    setGoogleLoading(true);
+    setErrors({});
+    try {
+      const userRole = await googleSignIn(role as Role);
+      setSuccess(true);
+      setTimeout(() => navigate(rolePath[userRole]), 1500);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || "";
+      if (msg.includes("not configured")) {
+        setErrors({ form: msg });
+      } else if (msg.includes("popup") || msg.includes("window.closed") || msg.includes("cancelled")) {
+        setErrors({ form: "Sign-in popup was blocked or closed. Try allowing popups for this site and try again." });
+      } else {
+        setErrors({ form: msg || "Google sign-in failed. Try using email/password instead." });
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   if (success) {
     return <div className="grid min-h-screen place-items-center bg-soft px-4">
       <BackToLanding />
@@ -276,12 +347,48 @@ export function RegisterPage() {
 
     <div className="flex items-center justify-center px-4 py-12 lg:w-[55%]">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .4 }} className="w-full max-w-lg">
-        <div className="rounded-[24px] border border-line bg-white p-8 shadow-[0_24px_88px_rgba(17,24,39,.10)] md:p-10">
+          <div className="rounded-[24px] border border-line bg-white p-8 shadow-[0_24px_88px_rgba(17,24,39,.10)] md:p-10">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20"><GraduationCap size={26}/></div>
             <h2 className="text-2xl font-semibold">Create your account</h2>
             <p className="mt-2 text-muted">Choose your role and set up your workspace.</p>
           </div>
+
+          <div className="mb-5">
+            <label className="mb-2.5 block text-sm font-medium text-ink">I am joining as<RequiredMark /></label>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              {roleOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { setRole(opt.value); clearError("role"); }}
+                  className={`relative flex flex-col items-center justify-center gap-1 rounded-2xl border p-3 text-center transition-all duration-[250ms] ${
+                    role === opt.value
+                      ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
+                      : "border-line bg-white shadow-sm hover:-translate-y-[3px] hover:shadow-lg"
+                  }`}
+                  style={{ minHeight: '85px' }}
+                >
+                  {role === opt.value && (
+                    <div className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
+                      <Check size={12} strokeWidth={3} />
+                    </div>
+                  )}
+                  <div className={role === opt.value ? "text-primary" : "text-muted"}><opt.icon size={18}/></div>
+                  <p className="text-sm font-semibold">{opt.label}</p>
+                  <p className="text-[10px] leading-tight text-muted">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+            <FieldErr msg={errors.role} />
+          </div>
+
+          {!googleEnabled && (
+            <p className="mb-3 text-center text-xs text-muted">Please select your role first to continue with Google.</p>
+          )}
+          <GoogleSignInButton onClick={handleGoogleSignIn} loading={googleLoading} disabled={!googleEnabled} />
+
+          <div className="my-6"><Divider /></div>
 
           <form onSubmit={submit} className="space-y-5">
             <div>
@@ -316,36 +423,6 @@ export function RegisterPage() {
                 <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="shrink-0 text-muted hover:text-ink" tabIndex={-1}>{showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
               </div>
               <FieldErr msg={errors.confirmPassword} />
-            </div>
-
-            <div>
-              <label className="mb-2.5 block text-sm font-medium text-ink">I am joining as<RequiredMark /></label>
-              <p className="mb-3 text-xs text-muted">Select the workspace that matches your role.</p>
-              <FieldErr msg={errors.role} />
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                {roleOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => { setRole(opt.value); clearError("role"); }}
-                    className={`relative flex flex-col items-center justify-center gap-1 rounded-2xl border p-3 text-center transition-all duration-[250ms] ${
-                      role === opt.value
-                        ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
-                        : "border-line bg-white shadow-sm hover:-translate-y-[3px] hover:shadow-lg"
-                    }`}
-                    style={{ minHeight: '85px' }}
-                  >
-                    {role === opt.value && (
-                      <div className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
-                        <Check size={12} strokeWidth={3} />
-                      </div>
-                    )}
-                    <div className={role === opt.value ? "text-primary" : "text-muted"}><opt.icon size={18}/></div>
-                    <p className="text-sm font-semibold">{opt.label}</p>
-                    <p className="text-[10px] leading-tight text-muted">{opt.desc}</p>
-                  </button>
-                ))}
-              </div>
             </div>
 
             {errors.form && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3"><p className="text-sm text-red-600">{errors.form}</p></div>}

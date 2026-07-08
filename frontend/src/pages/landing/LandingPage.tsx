@@ -1,30 +1,33 @@
-import { motion } from "framer-motion";
+import { memo, useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowDown,
+  AlertCircle,
   ArrowRight,
+  BookOpen,
+  Bot,
   Brain,
+  Briefcase,
   BriefcaseBusiness,
   Building2,
+  ChartSpline,
   Check,
-  CheckCircle2,
-  Database,
   GraduationCap,
   Lightbulb,
   MessageSquare,
+  MinusCircle,
+  Moon,
   Sparkles,
+  Sun,
   Target,
+  TrendingUp,
   Users,
+  Workflow,
   XCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
-
-const missionCards = [
-  { title: "Student Success", desc: "Personalized AI guidance helps every student achieve their full academic and career potential.", icon: GraduationCap },
-  { title: "Smarter Educators", desc: "Actionable insights empower faculty to identify at-risk students and improve teaching outcomes.", icon: Lightbulb },
-  { title: "AI-Driven Institutions", desc: "Predictive analytics and intelligent automation transform campus operations and decision-making.", icon: Target },
-];
+import { useTheme } from "../../context/ThemeContext";
 
 const capabilities = [
   { title: "Student Intelligence", icon: GraduationCap, items: ["AI Learning Roadmaps", "Skill Gap Analysis", "Placement Readiness Score", "Resume Analyzer", "Career Recommendations", "Internship Guidance"] },
@@ -35,234 +38,179 @@ const capabilities = [
   { title: "AI Engine", icon: Brain, items: ["Predictive Analytics", "Machine Learning Models", "AI Recommendations", "Explainable AI", "Risk Detection", "Smart Alerts"] },
 ];
 
+type TagName = "NEW" | "AI" | "LIVE" | "SMART" | "PREDICTIVE" | "AUTO" | "REAL TIME";
+
+const tagStyles: Record<TagName, { bg: string; text: string }> = {
+  "NEW": { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-300" },
+  "AI": { bg: "bg-violet-100 dark:bg-violet-900/30", text: "text-violet-700 dark:text-violet-300" },
+  "LIVE": { bg: "bg-rose-100 dark:bg-rose-900/30", text: "text-rose-700 dark:text-rose-300" },
+  "SMART": { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-300" },
+  "PREDICTIVE": { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-300" },
+  "AUTO": { bg: "bg-cyan-100 dark:bg-cyan-900/30", text: "text-cyan-700 dark:text-cyan-300" },
+  "REAL TIME": { bg: "bg-purple-100 dark:bg-purple-900/30", text: "text-purple-700 dark:text-purple-300" },
+};
+
 const comparison = [
-  { erp: "Stores data", ours: "Predicts outcomes" },
-  { erp: "Manual reports", ours: "Recommends actions" },
-  { erp: "Static dashboards", ours: "Live analytics" },
-  { erp: "No prediction", ours: "Personalized guidance" },
-  { erp: "Reactive decisions", ours: "Proactive decision-making" },
+  { erp: "Stores Student Data", ours: "AI-Powered Student Intelligence", tag: "AI" as TagName, aiIcon: "Brain" },
+  { erp: "Attendance Reports", ours: "Attendance Prediction & Risk Alerts", tag: "PREDICTIVE" as TagName, aiIcon: "TrendingUp" },
+  { erp: "Manual Placement Tracking", ours: "AI Placement Readiness Score", tag: "AI" as TagName, aiIcon: "Target" },
+  { erp: "Static Student Profiles", ours: "Dynamic AI Student Portfolio", tag: "SMART" as TagName, aiIcon: "BookOpen" },
+  { erp: "Marks & CGPA Only", ours: "Holistic Performance Analytics", tag: "AI" as TagName, aiIcon: "ChartSpline" },
+  { erp: "Manual Career Guidance", ours: "Personalized AI Career Roadmap", tag: "SMART" as TagName, aiIcon: "Lightbulb" },
+  { erp: "Basic Resume Storage", ours: "AI Resume Analyzer & ATS Score", tag: "AI" as TagName, aiIcon: "Briefcase" },
+  { erp: "No Mock Interviews", ours: "AI Mock Interview with Feedback", tag: "NEW" as TagName, aiIcon: "Bot" },
+  { erp: "No Coding Analytics", ours: "Live Coding Progress Tracking", tag: "LIVE" as TagName, aiIcon: "Sparkles" },
+  { erp: "No Skill Gap Analysis", ours: "AI Skill Gap Detection", tag: "AI" as TagName, aiIcon: "Brain" },
+  { erp: "Manual Notifications", ours: "Smart AI Recommendations", tag: "SMART" as TagName, aiIcon: "Lightbulb" },
+  { erp: "Static Dashboards", ours: "Real-time Interactive Dashboards", tag: "REAL TIME" as TagName, aiIcon: "ChartSpline" },
+  { erp: "Department-wise Reports", ours: "Predictive Department Analytics", tag: "PREDICTIVE" as TagName, aiIcon: "Building2" },
+  { erp: "No Company Matching", ours: "AI Company Eligibility Matching", tag: "AI" as TagName, aiIcon: "Briefcase" },
+  { erp: "No Learning Guidance", ours: "AI Personalized Learning Paths", tag: "AI" as TagName, aiIcon: "BookOpen" },
+  { erp: "No Student Risk Prediction", ours: "Early Dropout & Backlog Prediction", tag: "PREDICTIVE" as TagName, aiIcon: "AlertCircle" },
+  { erp: "No Parent Insights", ours: "Parent Performance Dashboard", tag: "NEW" as TagName, aiIcon: "Users" },
+  { erp: "No Faculty Intelligence", ours: "Faculty Performance Analytics", tag: "AI" as TagName, aiIcon: "GraduationCap" },
+  { erp: "No Placement Insights", ours: "Placement Success Forecast", tag: "PREDICTIVE" as TagName, aiIcon: "TrendingUp" },
+  { erp: "No Institutional AI", ours: "Institution-wide AI Decision Engine", tag: "AI" as TagName, aiIcon: "Brain" },
+  { erp: "No Automation", ours: "AI Workflow Automation", tag: "AUTO" as TagName, aiIcon: "Workflow" },
 ];
 
-const outcomes = [
-  "Improved Student Performance",
-  "Higher Placement Readiness",
-  "Early Risk Detection",
-  "Reduced Manual Work",
-  "Better Faculty Productivity",
-  "Stronger Parent Engagement",
-  "Smarter Leadership Decisions",
-  "Data-Driven AI Campus",
-];
+const aiIcons: Record<string, React.ComponentType<{ size?: number }>> = {
+  Brain, TrendingUp, Target, BookOpen, ChartSpline, Lightbulb, Briefcase, Bot, Sparkles, Building2, AlertCircle, Users, GraduationCap, Workflow,
+};
 
 const dashColors = ["#7C3AED", "#2563EB", "#EC4899", "#F97316"];
 
 function seededRandom(seed: number) {
-  const value = Math.sin(seed * 9283.37) * 10000;
-  return value - Math.floor(value);
+  return Math.sin(seed * 9283.37) * 10000 % 1 + 1 - Math.floor(Math.sin(seed * 9283.37) * 10000 % 1);
 }
 
-const heroDashes = Array.from({ length: 100 }, (_, index) => {
+const DASH_COUNT = 50;
+
+const heroDashes = Array.from({ length: DASH_COUNT }, (_, index) => {
   const zone = seededRandom((index + 1) * 11);
-  let area: "top" | "left" | "right" | "bottom" = "top";
-
-  if (zone < 0.34) {
-    area = "top";
-  } else if (zone < 0.62) {
-    area = "left";
-  } else if (zone < 0.9) {
-    area = "right";
-  } else {
-    area = "bottom";
-  }
-
+  const area = zone < 0.34 ? "top" : zone < 0.62 ? "left" : zone < 0.9 ? "right" : "bottom";
   return {
     area,
     x: 6 + seededRandom((index + 1) * 17) * 88,
     y: 8 + seededRandom((index + 1) * 19) * 84,
     width: 3 + seededRandom((index + 1) * 41) * 3,
-    opacity: 0.15 + seededRandom((index + 1) * 43) * 0.2,
+    opacity: 0.12 + seededRandom((index + 1) * 43) * 0.15,
     rotate: seededRandom((index + 1) * 47) * 180,
     color: dashColors[Math.floor(seededRandom((index + 1) * 53) * dashColors.length)],
   };
 });
 
-export function LandingPage() {
-  return <div className="relative bg-white text-ink">
-    <header className="sticky top-0 z-40 border-b border-line bg-white/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-3 font-bold">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20">AI</span>
-          <span>AI CampusOS</span>
-        </Link>
-        <nav className="hidden items-center gap-8 text-sm font-semibold text-muted lg:flex">
-          <a href="#platform" className="hover:text-ink">Platform</a>
-          <a href="#how-it-works" className="hover:text-ink">How It Works</a>
-          <a href="#outcomes" className="hover:text-ink">Outcomes</a>
-        </nav>
-        <div className="flex gap-2">
-          <Link to="/login"><Button variant="secondary">Explore Platform</Button></Link>
-          <Link to="/register"><Button>Book Demo <ArrowRight size={16}/></Button></Link>
-        </div>
-      </div>
-    </header>
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 20 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: "-80px" },
+  transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] as const, delay },
+});
 
-    <section className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-white flex items-center justify-center px-4 py-20">
-      <HeroDashes />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.055] blur-3xl" />
-      <div className="relative z-10 mx-auto max-w-5xl text-center">
-        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }}>
-          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-sm font-semibold text-primary shadow-sm backdrop-blur-xl">
-            <Sparkles size={16}/> AI-powered operating system for universities
-          </div>
-          <h1 className="text-6xl font-semibold tracking-normal md:text-8xl">AI CampusOS</h1>
-          <p className="mt-6 text-2xl font-semibold tracking-normal text-ink md:text-3xl">The AI Operating System for Modern Universities.</p>
-          <p className="mt-3 text-lg font-semibold text-primary md:text-xl">Predict. Analyze. Guide. Place.</p>
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-muted md:text-xl md:leading-9">
-            AI CampusOS unifies academics, placements, faculty intelligence, parent engagement, and institutional analytics into one AI-powered platform that helps universities improve student success through predictive AI.
-          </p>
-          <div className="mt-9 flex flex-wrap justify-center gap-3">
-            <Link to="/register"><Button className="h-12 px-7">Book Demo <ArrowRight size={18}/></Button></Link>
-            <Link to="/login"><Button variant="secondary" className="h-12 px-7">Explore Platform</Button></Link>
-          </div>
-        </motion.div>
-      </div>
-    </section>
-
-    <section className="border-y border-line bg-soft py-20">
-      <div className="mx-auto max-w-7xl px-4 text-center">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">Our Mission</p>
-        <h2 className="text-4xl font-semibold tracking-normal md:text-6xl">Empower every student to succeed.</h2>
-        <p className="mx-auto mt-5 max-w-4xl text-lg leading-8 text-muted md:text-xl md:leading-9">
-          Empower every student to succeed, every educator to make smarter decisions, and every institution to become truly AI-driven.
-        </p>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {missionCards.map(({ title, desc, icon: Icon }) => (
-            <Card key={title} className="p-7 text-center transition hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_24px_80px_rgba(108,76,241,.12)]">
-              <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary"><Icon size={24}/></div>
-              <h3 className="text-xl font-semibold">{title}</h3>
-              <p className="mt-3 text-sm leading-6 text-muted">{desc}</p>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    <section id="platform" className="mx-auto max-w-7xl px-4 py-20">
-      <div className="text-center">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">What AI CampusOS Delivers</p>
-        <h2 className="text-4xl font-semibold tracking-normal md:text-6xl">One Platform. Every Campus Intelligence.</h2>
-        <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-muted">
-          Six integrated intelligence layers that transform scattered campus data into predictive insights and coordinated action.
-        </p>
-      </div>
-      <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {capabilities.map(({ title, icon: Icon, items }) => (
-          <motion.div key={title} whileHover={{ y: -4 }} transition={{ duration: .2 }}>
-            <Card className="h-full p-6 transition hover:border-primary/30 hover:shadow-[0_24px_80px_rgba(108,76,241,.12)]">
-              <div className="mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><Icon size={22}/></div>
-              <h3 className="text-lg font-semibold">{title}</h3>
-              <ul className="mt-4 space-y-2">
-                {items.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-sm text-muted">
-                    <Check size={14} className="mt-0.5 shrink-0 text-primary"/> {item}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
-    </section>
-
-    <section id="how-it-works" className="border-y border-line bg-soft py-20">
-      <div className="mx-auto max-w-7xl px-4">
-        <div className="text-center">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">How It Works</p>
-          <h2 className="text-4xl font-semibold tracking-normal md:text-6xl">From Campus Data to Intelligent Action.</h2>
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-muted">
-            AI CampusOS transforms raw data into predictive insights, personalized recommendations, and measurable outcomes.
-          </p>
-        </div>
-        <Flow />
-      </div>
-    </section>
-
-    <section className="mx-auto max-w-7xl px-4 py-20">
-      <div className="text-center">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">Why AI CampusOS</p>
-        <h2 className="text-4xl font-semibold tracking-normal md:text-6xl">Beyond Traditional Campus ERP.</h2>
-        <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-muted">
-          Traditional systems store data. AI CampusOS predicts outcomes, recommends actions, and drives proactive decisions.
-        </p>
-      </div>
-      <div className="mx-auto mt-12 max-w-4xl">
-        <div className="grid grid-cols-2 gap-0 overflow-hidden rounded-2xl border border-line">
-          <div className="bg-soft p-6 text-center text-sm font-semibold uppercase tracking-wider text-muted">Traditional ERP</div>
-          <div className="bg-primary p-6 text-center text-sm font-semibold uppercase tracking-wider text-white">AI CampusOS</div>
-          {comparison.map((row, i) => [
-            <div key={`erp-${i}`} className="flex items-center gap-3 border-t border-line bg-white p-5 text-sm text-muted">
-              <XCircle size={16} className="shrink-0 text-red-400"/> {row.erp}
-            </div>,
-            <div key={`ai-${i}`} className="flex items-center gap-3 border-t border-line bg-white p-5 text-sm font-medium text-ink">
-              <Check size={16} className="shrink-0 text-primary"/> {row.ours}
-            </div>,
-          ])}
-        </div>
-      </div>
-    </section>
-
-    <section id="outcomes" className="border-y border-line bg-soft py-20">
-      <div className="mx-auto max-w-7xl px-4">
-        <div className="text-center">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">Outcomes</p>
-          <h2 className="text-4xl font-semibold tracking-normal md:text-6xl">Outcomes We Help Create.</h2>
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-muted">
-            Designed to improve student success, placement readiness, faculty effectiveness, and institutional intelligence.
-          </p>
-        </div>
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {outcomes.map((outcome) => (
-            <Card key={outcome} className="flex items-center gap-4 p-5 transition hover:-translate-y-1 hover:border-primary/30">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><CheckCircle2 size={20}/></div>
-              <p className="font-semibold">{outcome}</p>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    <section className="mx-auto max-w-7xl px-4 py-20">
-      <div className="overflow-hidden rounded-[32px] border border-primary/20 bg-gradient-to-br from-primary to-secondary p-10 text-white shadow-[0_28px_90px_rgba(108,76,241,.28)] md:p-16">
-        <div className="text-center">
-          <h2 className="text-4xl font-semibold md:text-6xl">Ready to Build a Smarter Campus?</h2>
-          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-white/80">
-            Bring academics, placements, faculty, parents, and institutional intelligence into one AI-powered operating system.
-          </p>
-          <div className="mt-9 flex flex-wrap justify-center gap-3">
-            <Link to="/register"><Button className="bg-white text-primary hover:bg-white">Book Demo</Button></Link>
-            <Link to="/login"><Button variant="secondary" className="border-white/30 bg-white/10 text-white hover:bg-white/15">Get Started</Button></Link>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <Footer />
-  </div>;
+function useScrollBlur() {
+  const [blur, setBlur] = useState(false);
+  useEffect(() => {
+    let frame: number;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setBlur(window.scrollY > 20));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(frame); };
+  }, []);
+  return blur;
 }
 
-function HeroDashes() {
+const ThemeToggle = memo(function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+      className="grid h-9 w-9 place-items-center rounded-xl text-muted transition-all duration-300 hover:bg-soft hover:text-primary dark:text-white/50 dark:hover:bg-white/[0.06] dark:hover:text-primary"
+    >
+      <motion.span key={theme} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} transition={{ duration: 0.3 }}>
+        {theme === "light" ? <Sun size={16} /> : <Moon size={16} />}
+      </motion.span>
+    </button>
+  );
+});
+
+const ComparisonRow = memo(function ComparisonRow({ icon: Icon, text, tag, index, side }: { icon: React.ComponentType<{ size?: number }>; text: string; tag?: TagName; index: number; side: "erp" | "ai" }) {
+  const tagStyle = tag ? tagStyles[tag] : null;
+  const isErp = side === "erp";
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: isErp ? -16 : 16 }}
+      whileInView={{ opacity: 1, x: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.3, delay: index * 0.03 }}
+      className={`group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-all duration-300 ${
+        isErp
+          ? "text-gray-400 hover:bg-gray-50 hover:text-gray-500 dark:text-white/30 dark:hover:bg-white/[0.03] dark:hover:text-white/50"
+          : "font-medium text-ink hover:bg-primary/[0.04] hover:text-primary dark:text-white/70 dark:hover:bg-primary/[0.06] dark:hover:text-primary"
+      }`}
+    >
+      <div className={`shrink-0 transition-all duration-300 ${
+        isErp
+          ? "text-red-300 group-hover:text-red-400 dark:text-red-400/50 dark:group-hover:text-red-400"
+          : "text-primary/60 group-hover:scale-110 group-hover:text-primary dark:text-primary/40 dark:group-hover:text-primary"
+      }`}>
+        <Icon size={16} />
+      </div>
+      <span className="flex-1 leading-snug">{text}</span>
+      {tagStyle && (
+        <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${tagStyle.bg} ${tagStyle.text}`}>
+          {tag}
+        </span>
+      )}
+    </motion.div>
+  );
+});
+
+const Footer = memo(function Footer() {
+  return (
+    <footer className="border-t border-line bg-white transition-colors dark:border-white/[0.06] dark:bg-[#050505]">
+      <div className="mx-auto max-w-6xl px-4 py-20 text-center md:py-24">
+        <Link to="/" className="inline-flex items-center gap-3 font-bold">
+          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-sm text-white shadow-lg shadow-primary/20">
+            AI
+          </span>
+          <span className="text-lg text-ink dark:text-white">AI CampusOS</span>
+        </Link>
+        <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-muted dark:text-white/50">
+          The AI Operating System for Modern Higher Education
+        </p>
+        <p className="mt-3 text-sm text-muted/60 dark:text-white/30">
+          Empowering Students &bull; Faculty &bull; Parents &bull; Placement Officers &bull; Institutions
+        </p>
+        <div className="mx-auto mt-10 h-px max-w-xs bg-gradient-to-r from-transparent via-line to-transparent dark:via-white/[0.08]" />
+        <p className="mt-8 text-sm text-muted/50 dark:text-white/25">
+          &copy; 2026 AI CampusOS. All Rights Reserved.
+        </p>
+        <div className="mt-4 flex items-center justify-center gap-6 text-sm text-muted/50 dark:text-white/25">
+          <a href="#" className="transition hover:text-primary dark:hover:text-primary">Privacy Policy</a>
+          <span className="h-1 w-1 rounded-full bg-line dark:bg-white/[0.08]" />
+          <a href="#" className="transition hover:text-primary dark:hover:text-primary">Terms of Service</a>
+        </div>
+      </div>
+    </footer>
+  );
+});
+
+const HeroDashes = memo(function HeroDashes() {
   const areas = {
-    top: { left: 0, right: 0, top: 0, height: 56 },
-    left: { left: 0, top: 220, bottom: 128, width: 120 },
-    right: { right: 0, top: 220, bottom: 128, width: 120 },
-    bottom: { left: 0, right: 0, bottom: 0, height: 96 },
+    top: { left: 0, right: 0, top: 0, height: 48 },
+    left: { left: 0, top: 180, bottom: 100, width: 100 },
+    right: { right: 0, top: 180, bottom: 100, width: 100 },
+    bottom: { left: 0, right: 0, bottom: 0, height: 80 },
   };
 
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 hidden overflow-hidden md:block">
       {Object.entries(areas).map(([area, style]) => (
         <div key={area} className="absolute" style={style}>
-          {heroDashes.filter((dash) => dash.area === area).map((dash, index) => (
+          {heroDashes.filter(dash => dash.area === area).map((dash, index) => (
             <span
               key={`${area}-${index}`}
               className="absolute block rounded-full"
@@ -281,36 +229,297 @@ function HeroDashes() {
       ))}
     </div>
   );
+});
+
+function Navbar() {
+  const blur = useScrollBlur();
+
+  return (
+    <header
+      className={`sticky top-0 z-40 transition-all duration-500 ${
+        blur
+          ? "border-b border-line/80 bg-white/80 shadow-[0_1px_12px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-white/[0.06] dark:bg-[#050505]/80"
+          : "border-b border-transparent bg-transparent"
+      }`}
+    >
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4">
+        <Link to="/" className="flex items-center gap-3 font-bold">
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20">
+            AI
+          </span>
+          <span className="text-ink dark:text-white">AI CampusOS</span>
+        </Link>
+        <nav className="hidden items-center gap-8 text-sm font-semibold lg:flex">
+          <a href="#platform" className="relative text-muted transition-colors hover:text-ink after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-0 after:rounded-full after:bg-primary after:transition-all after:duration-300 hover:after:w-full dark:text-white/50 dark:hover:text-white">
+            Platform
+          </a>
+        </nav>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <div className="hidden gap-2 sm:flex">
+            <Link to="/login"><Button variant="secondary" className="h-10">Explore Platform</Button></Link>
+            <Link to="/register"><Button className="h-10">Book Demo <ArrowRight size={16}/></Button></Link>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
 }
 
-function Flow() {
-  const groups = [
-    ["INPUT", ["Student Data", "Attendance", "Academics", "Skills", "Placement Records"], Database],
-    ["AI PROCESS", ["Prediction Models", "Pattern Detection", "Recommendation Engine", "Risk Analysis", "Explainable AI"], Brain],
-    ["OUTPUT", ["Performance Insights", "Career Suggestions", "Placement Readiness", "Faculty Alerts", "Parent Reports", "Institution Decisions"], CheckCircle2],
-  ] as const;
-  return <div className="mt-12 grid gap-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-center">
-    {groups.map(([title, items, Icon], index) => <div key={title} className="contents">
-      <motion.div initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * .12 }}><Card className="p-7">
-        <div className="mb-5 flex items-center gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white"><Icon size={22}/></div><h3 className="text-2xl font-semibold">{title}</h3></div>
-        <div className="space-y-3">{items.map((item) => <div key={item} className="rounded-2xl border border-line bg-soft px-4 py-3 text-sm font-semibold">{item}</div>)}</div>
-      </Card></motion.div>
-      {index < groups.length - 1 && <div className="grid place-items-center text-primary"><ArrowDown className="lg:hidden"/><ArrowRight className="hidden lg:block"/></div>}
-    </div>)}
-  </div>;
-}
+export function LandingPage() {
+  const prefersReduced = useReducedMotion();
+  const anim = !prefersReduced;
 
-function Footer() {
-  const columns = {
-    Product: ["AI Analytics", "AI Engine", "Role Dashboards", "Reports"],
-    Solutions: ["Students", "Faculty", "Parents", "Placement Teams"],
-    Resources: ["Documentation", "Case Studies", "Security", "API"],
-    Company: ["About", "Contact", "Privacy", "Terms"],
-  };
-  return <footer className="border-t border-line bg-white py-14">
-    <div className="mx-auto grid max-w-7xl gap-10 px-4 lg:grid-cols-[1.2fr_2fr]">
-      <div><Link to="/" className="flex items-center gap-3 font-bold"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-primary text-white">AI</span>AI CampusOS</Link><p className="mt-5 max-w-sm leading-7 text-muted">The AI operating system for modern universities.</p><div className="mt-6 flex gap-3 text-sm font-semibold text-muted"><span>LinkedIn</span><span>Twitter</span><span>GitHub</span></div></div>
-      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(columns).map(([title, links]) => <div key={title}><p className="font-semibold">{title}</p><div className="mt-4 space-y-3">{links.map((link) => <p key={link} className="text-sm text-muted">{link}</p>)}</div></div>)}</div>
+  return (
+    <div className="relative min-h-screen bg-white text-ink transition-colors dark:bg-[#050505] dark:text-white">
+      <Navbar />
+
+      {/* ── Hero ── */}
+      <section className="relative flex min-h-[calc(100vh-88px)] items-center justify-center overflow-hidden bg-white px-4 py-20 dark:bg-[#050505]">
+        <HeroDashes />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.055] blur-2xl dark:bg-primary/[0.08]" />
+        <div className="relative z-10 mx-auto max-w-5xl text-center">
+          {anim ? (
+            <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
+              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-sm font-semibold text-primary shadow-sm backdrop-blur-xl dark:border-primary/20 dark:bg-white/[0.04]">
+                <Sparkles size={16}/> AI-powered operating system for universities
+              </div>
+              <h1 className="text-6xl font-semibold tracking-tight md:text-8xl">AI CampusOS</h1>
+              <p className="mt-6 text-2xl font-semibold tracking-tight text-ink md:text-3xl dark:text-white">The AI Operating System for Modern Universities.</p>
+              <p className="mt-3 text-lg font-semibold text-primary md:text-xl">Predict. Analyze. Guide. Place.</p>
+              <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-muted md:text-xl md:leading-9 dark:text-white/60">
+                AI CampusOS unifies academics, placements, faculty intelligence, parent engagement, and institutional analytics into one AI-powered platform that helps universities improve student success through predictive AI.
+              </p>
+              <div className="mt-9 flex flex-wrap justify-center gap-3">
+                <Link to="/register">
+                  <Button className="group/btn relative h-12 overflow-hidden rounded-xl px-7 shadow-lg shadow-primary/25 transition-all duration-300 hover:shadow-[0_0_24px_rgba(108,76,241,0.35)]">
+                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 opacity-0 transition-opacity duration-500 group-hover/btn:opacity-100" />
+                    <span className="relative z-10 flex items-center gap-2">
+                      Book Demo <ArrowRight size={18} className="transition-transform duration-300 group-hover/btn:translate-x-0.5" />
+                    </span>
+                  </Button>
+                </Link>
+                <Link to="/login"><Button variant="secondary" className="h-12 px-7">Explore Platform</Button></Link>
+              </div>
+            </motion.div>
+          ) : (
+            <div>
+              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-sm font-semibold text-primary shadow-sm backdrop-blur-xl dark:border-primary/20 dark:bg-white/[0.04]">
+                <Sparkles size={16}/> AI-powered operating system for universities
+              </div>
+              <h1 className="text-6xl font-semibold tracking-tight md:text-8xl">AI CampusOS</h1>
+              <p className="mt-6 text-2xl font-semibold tracking-tight text-ink md:text-3xl dark:text-white">The AI Operating System for Modern Universities.</p>
+              <p className="mt-3 text-lg font-semibold text-primary md:text-xl">Predict. Analyze. Guide. Place.</p>
+              <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-muted md:text-xl md:leading-9 dark:text-white/60">
+                AI CampusOS unifies academics, placements, faculty intelligence, parent engagement, and institutional analytics into one AI-powered platform that helps universities improve student success through predictive AI.
+              </p>
+              <div className="mt-9 flex flex-wrap justify-center gap-3">
+                <Link to="/register"><Button className="h-12 px-7">Book Demo <ArrowRight size={18}/></Button></Link>
+                <Link to="/login"><Button variant="secondary" className="h-12 px-7">Explore Platform</Button></Link>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Platform / Capabilities ── */}
+      <section id="platform" className="mx-auto max-w-7xl px-4 py-20 md:py-28">
+        <motion.div {...fadeUp()} className="text-center">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">What AI CampusOS Delivers</p>
+          <h2 className="text-4xl font-semibold tracking-tight md:text-6xl">One Platform. Every Campus Intelligence.</h2>
+          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-muted dark:text-white/60">
+            Six integrated intelligence layers that transform scattered campus data into predictive insights and coordinated action.
+          </p>
+        </motion.div>
+        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {capabilities.map(({ title, icon: Icon, items }) => (
+            <motion.div
+              key={title}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.5 }}
+              whileHover={anim ? { y: -6 } : undefined}
+            >
+              <Card className="group/card h-full p-6 transition-all duration-300 hover:border-primary/30 hover:shadow-[0_24px_80px_rgba(108,76,241,0.1)] dark:hover:border-primary/40 dark:hover:shadow-[0_24px_80px_rgba(108,76,241,0.06)]">
+                <div className="mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary transition-all duration-300 group-hover/card:scale-110 group-hover/card:bg-primary/15 dark:bg-primary/15 dark:group-hover/card:bg-primary/20">
+                  <Icon size={22} />
+                </div>
+                <h3 className="text-lg font-semibold">{title}</h3>
+                <ul className="mt-4 space-y-2">
+                  {items.map(item => (
+                    <li key={item} className="flex items-start gap-2 text-sm text-muted dark:text-white/50">
+                      <Check size={14} className="mt-0.5 shrink-0 text-primary dark:text-primary/70"/> {item}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Comparison: ERP vs AI CampusOS ── */}
+      <section className="mx-auto max-w-7xl px-4 py-20 md:py-28">
+        <motion.div {...fadeUp()} className="text-center">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">Why AI CampusOS</p>
+          <h2 className="text-4xl font-semibold tracking-tight md:text-6xl">More Than a Traditional Campus ERP</h2>
+          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-muted dark:text-white/60">
+            Traditional ERP systems only store institutional data. AI CampusOS transforms that data into intelligence, predictions, automation, and personalized guidance for every stakeholder.
+          </p>
+        </motion.div>
+
+        <div className="mx-auto mt-16 grid max-w-6xl gap-6 lg:grid-cols-2">
+          {/* Traditional ERP Card */}
+          <motion.div
+            initial={{ opacity: 0, x: -40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.5 }}
+            className="rounded-[24px] border border-line bg-white p-6 shadow-[0_8px_32px_rgba(0,0,0,0.04)] transition-all duration-300 md:p-8 dark:border-white/[0.06] dark:bg-[#111] dark:shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
+          >
+            <div className="mb-6 flex items-center gap-4">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-white/[0.04] dark:text-white/30">
+                <MinusCircle size={22} />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-white/80">Traditional Campus ERP</h3>
+                <p className="mt-0.5 text-sm text-gray-400 dark:text-white/30">Legacy approach</p>
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              {comparison.map((row, i) => (
+                <ComparisonRow key={`erp-${i}`} icon={XCircle} text={row.erp} index={i} side="erp" />
+              ))}
+            </div>
+          </motion.div>
+
+          {/* AI CampusOS Card */}
+          <motion.div
+            initial={{ opacity: 0, x: 40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="group/ai-card relative rounded-[24px] border-2 border-primary/20 bg-white p-6 shadow-[0_16px_48px_rgba(108,76,241,0.10)] transition-all duration-300 hover:shadow-[0_24px_64px_rgba(108,76,241,0.18)] md:p-8 dark:border-primary/25 dark:bg-[#111] dark:shadow-[0_16px_48px_rgba(108,76,241,0.04)] dark:hover:shadow-[0_24px_64px_rgba(108,76,241,0.08)]"
+            style={{ animation: anim ? "pulseGlow 3s ease-in-out infinite" : undefined }}
+          >
+            <div className="absolute -inset-[1px] rounded-[24px] bg-gradient-to-br from-primary/10 via-transparent to-primary/5 opacity-60 pointer-events-none dark:from-primary/15 dark:to-primary/8" />
+            <div className="relative z-10">
+              <div className="mb-6 flex items-center gap-4">
+                <div className="relative grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white shadow-lg shadow-primary/20">
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xl font-semibold text-ink dark:text-white">AI CampusOS</h3>
+                    <span className="rounded-full bg-gradient-to-r from-primary to-secondary px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm">
+                      AI Powered
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-sm text-primary/70 dark:text-primary/50">Next-generation platform</p>
+                </div>
+              </div>
+              <div className="space-y-0.5">
+                {comparison.map((row, i) => {
+                  const Icon = aiIcons[row.aiIcon] || Sparkles;
+                  return <ComparisonRow key={`ai-${i}`} icon={Icon} text={row.ours} tag={row.tag} index={i} side="ai" />;
+                })}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="relative overflow-hidden bg-white py-20 md:py-28 dark:bg-[#050505]">
+        <div className="pointer-events-none absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-primary/[0.04] blur-3xl dark:bg-primary/[0.06]" />
+        <div className="pointer-events-none absolute -right-32 top-1/3 h-80 w-80 rounded-full bg-secondary/[0.04] blur-3xl dark:bg-secondary/[0.06]" />
+        <div className="pointer-events-none absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-primary/[0.03] blur-3xl dark:bg-primary/[0.04]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236C4CF1' fill-opacity='0.15'%3E%3Cpath d='M0 0h2v2H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
+
+        <div className="relative z-10 mx-auto max-w-5xl px-4">
+          <motion.div {...fadeUp(0)}>
+            <div className="group relative overflow-hidden rounded-[32px] border border-primary/10 bg-white/80 p-10 shadow-[0_8px_32px_rgba(108,76,241,0.06)] backdrop-blur-xl transition-all duration-500 hover:shadow-[0_24px_80px_rgba(108,76,241,0.12)] md:p-16 dark:border-primary/15 dark:bg-white/[0.03] dark:shadow-[0_8px_32px_rgba(108,76,241,0.02)] dark:hover:shadow-[0_24px_80px_rgba(108,76,241,0.04)]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-primary/[0.02] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+              {anim && (
+                <>
+                  <motion.div
+                    animate={{ y: [0, -12, 0] }}
+                    transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                    className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 blur-3xl dark:from-primary/15 dark:to-secondary/15"
+                  />
+                  <motion.div
+                    animate={{ y: [0, 12, 0] }}
+                    transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+                    className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-gradient-to-tr from-primary/8 to-secondary/8 blur-3xl dark:from-primary/12 dark:to-secondary/12"
+                  />
+                </>
+              )}
+
+              <div className="pointer-events-none absolute left-1/3 top-1/3 h-32 w-32 rounded-full bg-primary/[0.03] blur-2xl dark:bg-primary/[0.05]" />
+              <div className="pointer-events-none absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236C4CF1' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
+
+              <div className="relative z-10">
+                <motion.div
+                  initial={anim ? { opacity: 0, scale: 0.96 } : undefined}
+                  whileInView={anim ? { opacity: 1, scale: 1 } : undefined}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.15 }}
+                >
+                  <h2 className="text-3xl font-semibold tracking-tight text-ink md:text-5xl dark:text-white">
+                    Ready to Transform Your Institution?
+                  </h2>
+                  <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted dark:text-white/60">
+                    Empower students, faculty, placement officers, parents, and administrators with one intelligent AI-powered campus platform.
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  initial={anim ? { opacity: 0, y: 16 } : undefined}
+                  whileInView={anim ? { opacity: 1, y: 0 } : undefined}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.35 }}
+                  className="mt-10 flex flex-wrap justify-center gap-4"
+                >
+                  <Link to="/register">
+                    <motion.span
+                      whileHover={anim ? { scale: 1.04, y: -2 } : undefined}
+                      whileTap={anim ? { scale: 0.96 } : undefined}
+                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                      className="inline-block"
+                    >
+                      <Button className="group/primary relative h-12 overflow-hidden rounded-xl bg-gradient-to-r from-primary to-secondary px-8 text-white shadow-lg shadow-primary/25 transition-all duration-300 hover:shadow-[0_0_24px_rgba(108,76,241,0.35)]">
+                        <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 opacity-0 transition-opacity duration-500 group-hover/primary:opacity-100" />
+                        <span className="relative z-10 flex items-center gap-2">
+                          Explore Platform <ArrowRight size={18} className="transition-transform duration-300 group-hover/primary:translate-x-0.5" />
+                        </span>
+                      </Button>
+                    </motion.span>
+                  </Link>
+                  <Link to="/login">
+                    <motion.span
+                      whileHover={anim ? { scale: 1.04, y: -2 } : undefined}
+                      whileTap={anim ? { scale: 0.96 } : undefined}
+                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                      className="inline-block"
+                    >
+                      <Button
+                        variant="secondary"
+                        className="group/secondary h-12 rounded-xl border-2 border-primary/20 bg-white/80 px-8 text-ink shadow-lg shadow-primary/5 backdrop-blur-sm transition-all duration-300 hover:border-primary/40 hover:bg-white hover:shadow-[0_8px_32px_rgba(108,76,241,0.1)] dark:border-primary/25 dark:bg-white/[0.04] dark:text-white/80 dark:hover:border-primary/40 dark:hover:bg-white/[0.08] dark:hover:text-white"
+                      >
+                        Book Demo
+                      </Button>
+                    </motion.span>
+                  </Link>
+                </motion.div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <Footer />
     </div>
-  </footer>;
+  );
 }

@@ -16,6 +16,7 @@ import { Avatar } from "../../components/ui/Avatar";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { useAuth } from "../../context/AuthContext";
+import { useOptionalStudentProfile } from "../../context/StudentProfileContext";
 import type { Dashboard, KpiItem } from "../../types";
 
 const endpoint: Record<string, string> = { student: "/student/dashboard", faculty: "/faculty/dashboard", parent: "/parent/dashboard", placement: "/placement/dashboard", admin: "/admin/dashboard" };
@@ -119,14 +120,18 @@ const defaultStudentDashboard: Dashboard = {
 };
 
 export function DashboardPage({ kind }: { kind: DashboardKind }) {
-  const { data, isLoading, isError } = useQuery({ queryKey: ["dashboard", kind], queryFn: async () => (await api.get<Dashboard>(endpoint[kind])).data });
+  const studentProfile = useOptionalStudentProfile();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["dashboard", kind],
+    queryFn: async () => (await api.get<Dashboard>(endpoint[kind])).data,
+    enabled: kind !== "student",
+  });
 
   if (kind === "student") {
-    if (isLoading) return <DashboardSkeleton />;
-    if (isError || !data) {
-      return <StudentDashboard data={defaultStudentDashboard} />;
-    }
-    return <StudentDashboard data={{ ...defaultStudentDashboard, ...data, overall: { ...defaultStudentDashboard.overall!, ...data.overall }, kpis: data.kpis?.length ? data.kpis : [], charts: { ...defaultStudentDashboard.charts, ...data.charts }, coding_summary: data.coding_summary, recommendations: data.recommendations?.length ? data.recommendations : [], roadmap: data.roadmap?.length ? data.roadmap : [], placementReadiness: data.placementReadiness ?? undefined, activities: data.activities?.length ? data.activities : [] }} />;
+    if (studentProfile.loading || isLoading) return <DashboardSkeleton />;
+    const liveDashboard = studentProfile.dashboard ?? data ?? null;
+    if (!liveDashboard || isError) return <EmptyState />;
+    return <StudentDashboard data={liveDashboard} />;
   }
 
   if (isLoading) return <DashboardSkeleton />;

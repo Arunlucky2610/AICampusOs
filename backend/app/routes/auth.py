@@ -16,7 +16,6 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     GoogleAuthRequest,
     GoogleAuthResponse,
-    GoogleCompleteRequest,
     LoginRequest,
     RefreshTokenRequest,
     RegisterRequest,
@@ -26,14 +25,12 @@ from app.schemas.auth import (
 from app.schemas.user import UserRead
 from app.services.auth_service import (
     authenticate_user,
-    create_google_temp_token,
+    create_google_user,
     create_role_profile,
     create_user,
-    decode_google_temp_token,
-    get_google_redirect_response,
     issue_tokens,
     refresh_access_token,
-    verify_google_access_token,
+    verify_firebase_token,
 )
 from app.services.email_service import send_password_reset_email, send_test_email, send_welcome_email
 from app.utils.response import ok
@@ -147,12 +144,19 @@ def test_email(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="SMTP configuration error - check backend logs")
 
 
-@router.post("/google", response_model=GoogleAuthResponse)
+@router.post("/google")
 def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
-    info = verify_google_access_token(payload.id_token)
+    logger.info("Google auth request — body keys: idToken=%s id_token=%s role=%s",
+                bool(payload.idToken), bool(payload.id_token), payload.role)
+    if not payload.id_token and not payload.idToken:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="id_token is required")
+    id_token = payload.id_token or payload.idToken
+    logger.info("Google auth — idToken present=%s length=%s role=%s",
+                bool(id_token), len(id_token) if id_token else 0, payload.role)
+    info = verify_firebase_token(id_token)
     google_sub = info["sub"]
     email = info["email"].lower()
-    full_name = info.get("name", email.split("@")[0])
+    full_name = info["full_name"] or email.split("@")[0]
     picture = info.get("picture", "")
 
     user = db.query(User).filter(
@@ -166,53 +170,15 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
             user.profile_picture = picture
         db.commit()
         db.refresh(user)
-        return get_google_redirect_response(user)
+        return issue_tokens(user)
 
-    temp_token = create_google_temp_token(email, full_name, picture, google_sub)
-    return GoogleAuthResponse(
-        status="role_required",
-        google_temp_token=temp_token,
-        email=email,
-        full_name=full_name,
-        profile_picture=picture,
-    )
+    if not payload.role:
+        return GoogleAuthResponse(
+            status="role_required",
+            email=email,
+            full_name=full_name,
+            profile_picture=picture,
+        )
 
-
-@router.post("/google/complete", response_model=TokenResponse)
-def google_complete(payload: GoogleCompleteRequest, db: Session = Depends(get_db)):
-    temp_data = decode_google_temp_token(payload.google_temp_token)
-    email = temp_data["email"]
-    full_name = temp_data["full_name"]
-    google_sub = temp_data["google_sub"]
-    picture = temp_data.get("picture", "")
-
-    existing = db.query(User).filter(
-        (User.google_sub == google_sub) | (User.email == email)
-    ).first()
-    if existing:
-        return get_google_redirect_response(existing)
-
-    import bcrypt
-    random_hash = bcrypt.hashpw(b"unused", bcrypt.gensalt()).decode("utf-8")
-
-    user = User(
-        full_name=full_name,
-        email=email,
-        hashed_password=random_hash,
-        role=payload.role,
-        is_active=True,
-        is_verified=True,
-        auth_provider="google",
-        google_sub=google_sub,
-        profile_picture=picture,
-    )
-    db.add(user)
-    db.flush()
-    create_role_profile(db, user)
-    db.commit()
-    db.refresh(user)
-
-    return issue_tokens(user)
-
-
-
+    created = create_google_user(db, email, full_name, picture, google_sub, payload.role)
+    return issue_tokens(created)

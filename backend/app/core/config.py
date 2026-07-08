@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     google_client_id: str = "your_google_client_id"
     google_temp_secret: str = "change_this_google_temp_secret"
+    firebase_service_account_path: str = ""
     cors_origins: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
 
     smtp_host: str = "smtp.gmail.com"

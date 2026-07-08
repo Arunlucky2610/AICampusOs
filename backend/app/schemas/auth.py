@@ -38,22 +38,13 @@ class ResetPasswordRequest(BaseModel):
 
 
 class GoogleAuthRequest(BaseModel):
-    id_token: str
+    id_token: str | None = None
+    idToken: str | None = None
+    role: UserRole | None = None
 
 
 class GoogleAuthResponse(BaseModel):
     status: str
-    access_token: str | None = None
-    refresh_token: str | None = None
-    token_type: str | None = None
-    user: UserRead | None = None
-    role: UserRole | None = None
-    google_temp_token: str | None = None
     email: str | None = None
     full_name: str | None = None
     profile_picture: str | None = None
-
-
-class GoogleCompleteRequest(BaseModel):
-    google_temp_token: str
-    role: UserRole

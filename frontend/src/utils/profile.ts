@@ -24,6 +24,9 @@ const PROFILE_FIELD_MAP: Record<string, string> = {
   dateOfBirth: "date_of_birth",
   phoneNumber: "phone_number",
   profilePhotoUrl: "profile_photo_url",
+  profilePhoto: "profile_photo_url",
+  currentSGPA: "current_sgpa",
+  currentSgpa: "current_sgpa",
   currentSemesterGpa: "current_semester_gpa",
   attendancePercentage: "attendance_percentage",
   creditsEarned: "credits_earned",
@@ -37,10 +40,15 @@ const PROFILE_FIELD_MAP: Record<string, string> = {
   mockInterviewScore: "mock_interview_score",
   communicationScore: "communication_score",
   preferredRole: "preferred_role",
+  targetRole: "preferred_role",
+  preferredCompanies: "preferred_companies",
   expectedPackage: "expected_package",
   semesterGpas: "semester_gpas",
   subjectsData: "subjects_data",
   skillsData: "skills_data",
+  skills: "skills",
+  projects: "projects",
+  resume: "resume",
   eligibleCompaniesList: "eligible_companies_list",
   appliedCompaniesList: "applied_companies_list",
   githubUrl: "github_url",
@@ -63,16 +71,33 @@ const REVERSE_PROFILE_FIELD_MAP = Object.fromEntries(
   Object.entries(PROFILE_FIELD_MAP).map(([camel, snake]) => [snake, camel]),
 );
 
-function remapTopLevel(value: Record<string, any>, map: Record<string, string>) {
-  return Object.fromEntries(
-    Object.entries(value).map(([key, val]) => [map[key] || key, val]),
-  );
-}
-
 export function normalizeStudentProfile<T extends Record<string, any>>(profile: T): T {
-  return remapTopLevel(profile, PROFILE_FIELD_MAP) as T;
+  const normalized: Record<string, any> = { ...profile };
+  for (const [camel, snake] of Object.entries(PROFILE_FIELD_MAP)) {
+    const camelValue = normalized[camel];
+    const snakeValue = normalized[snake];
+    if (snakeValue !== undefined && camelValue === undefined) normalized[camel] = snakeValue;
+    if (camelValue !== undefined && snakeValue === undefined) normalized[snake] = camelValue;
+  }
+  if (normalized.current_sgpa !== undefined && normalized.current_semester_gpa === undefined) {
+    normalized.current_semester_gpa = normalized.current_sgpa;
+  }
+  if (normalized.current_semester_gpa !== undefined && normalized.currentSGPA === undefined) {
+    normalized.currentSGPA = normalized.current_semester_gpa;
+  }
+  if (normalized.preferred_companies === undefined && normalized.preferredCompanies !== undefined) {
+    normalized.preferred_companies = normalized.preferredCompanies;
+  }
+  if (normalized.preferredCompanies === undefined && normalized.preferred_companies !== undefined) {
+    normalized.preferredCompanies = normalized.preferred_companies;
+  }
+  return normalized as T;
 }
 
 export function toProfileApiPayload<T extends Record<string, any>>(profile: T): T {
-  return remapTopLevel(profile, REVERSE_PROFILE_FIELD_MAP) as T;
+  const payload: Record<string, any> = { ...profile };
+  for (const [snake, camel] of Object.entries(REVERSE_PROFILE_FIELD_MAP)) {
+    if (payload[camel] !== undefined) payload[snake] = payload[camel];
+  }
+  return payload as T;
 }

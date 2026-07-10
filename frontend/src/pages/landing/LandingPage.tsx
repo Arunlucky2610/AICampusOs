@@ -13,6 +13,7 @@ import {
   Check,
   GraduationCap,
   Lightbulb,
+  Menu,
   MessageSquare,
   MinusCircle,
   Moon,
@@ -22,6 +23,7 @@ import {
   TrendingUp,
   Users,
   Workflow,
+  X,
   XCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -170,8 +172,8 @@ const ComparisonRow = memo(function ComparisonRow({ icon: Icon, text, tag, index
 
 const Footer = memo(function Footer() {
   return (
-    <footer className="border-t border-line bg-white transition-colors dark:border-white/[0.06] dark:bg-[#050505]">
-      <div className="mx-auto max-w-6xl px-4 py-20 text-center md:py-24">
+    <footer className="border-t border-gray-200/50 bg-white transition-colors dark:border-white/[0.04] dark:bg-[#050505]">
+      <div className="mx-auto max-w-6xl px-4 py-12 text-center md:py-16">
         <Link to="/" className="inline-flex items-center gap-3 font-bold">
           <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-sm text-white shadow-lg shadow-primary/20">
             AI
@@ -231,12 +233,26 @@ const HeroDashes = memo(function HeroDashes() {
   );
 });
 
+const navLinks = [
+  { href: "#platform", label: "Platform" },
+  { href: "#platform", label: "Features" },
+  { href: "#outcomes", label: "Outcomes" },
+  { href: "#contact", label: "Contact" },
+];
+
 function Navbar() {
   const blur = useScrollBlur();
+  const [open, setOpen] = useState(false);
+
+  const handleNav = (href: string) => {
+    setOpen(false);
+    const el = document.querySelector(href);
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
 
   return (
     <header
-      className={`sticky top-0 z-40 transition-all duration-500 ${
+      className={`sticky top-0 z-50 transition-all duration-500 ${
         blur
           ? "border-b border-line/80 bg-white/80 shadow-[0_1px_12px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-white/[0.06] dark:bg-[#050505]/80"
           : "border-b border-transparent bg-transparent"
@@ -249,19 +265,65 @@ function Navbar() {
           </span>
           <span className="text-ink dark:text-white">AI CampusOS</span>
         </Link>
-        <nav className="hidden items-center gap-8 text-sm font-semibold lg:flex">
-          <a href="#platform" className="relative text-muted transition-colors hover:text-ink after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-0 after:rounded-full after:bg-primary after:transition-all after:duration-300 hover:after:w-full dark:text-white/50 dark:hover:text-white">
-            Platform
-          </a>
+
+        {/* Desktop nav */}
+        <nav className="hidden items-center gap-7 text-sm font-semibold lg:flex">
+          {navLinks.map(({ href, label }) => (
+            <a
+              key={href}
+              href={href}
+              onClick={(e) => { e.preventDefault(); handleNav(href); }}
+              className="relative text-muted transition-colors hover:text-ink after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-0 after:rounded-full after:bg-primary after:transition-all after:duration-300 hover:after:w-full dark:text-white/50 dark:hover:text-white"
+            >
+              {label}
+            </a>
+          ))}
         </nav>
+
         <div className="flex items-center gap-2">
           <ThemeToggle />
+
+          {/* Desktop buttons */}
           <div className="hidden gap-2 sm:flex">
             <Link to="/login"><Button variant="secondary" className="h-10">Explore Platform</Button></Link>
             <Link to="/register"><Button className="h-10">Book Demo <ArrowRight size={16}/></Button></Link>
           </div>
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setOpen(!open)}
+            aria-label="Toggle menu"
+            className="grid h-9 w-9 place-items-center rounded-xl text-muted transition-colors hover:bg-soft hover:text-primary lg:hidden dark:text-white/50 dark:hover:bg-white/[0.06] dark:hover:text-white"
+          >
+            {open ? <X size={18} /> : <Menu size={18} />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      <motion.div
+        initial={false}
+        animate={open ? { height: "auto", opacity: 1 } : { height: 0, opacity: 0 }}
+        transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+        className="overflow-hidden border-t border-line/60 bg-white/95 backdrop-blur-xl dark:border-white/[0.06] dark:bg-[#050505]/95 lg:hidden"
+      >
+        <div className="mx-auto max-w-7xl space-y-1 px-4 py-5">
+          {navLinks.map(({ href, label }) => (
+            <a
+              key={href}
+              href={href}
+              onClick={(e) => { e.preventDefault(); handleNav(href); }}
+              className="block rounded-xl px-4 py-3 text-sm font-semibold text-muted transition-colors hover:bg-soft hover:text-ink dark:text-white/50 dark:hover:bg-white/[0.04] dark:hover:text-white"
+            >
+              {label}
+            </a>
+          ))}
+          <div className="flex gap-3 pt-3">
+            <Link to="/login" className="flex-1" onClick={() => setOpen(false)}><Button variant="secondary" className="w-full">Explore Platform</Button></Link>
+            <Link to="/register" className="flex-1" onClick={() => setOpen(false)}><Button className="w-full">Book Demo</Button></Link>
+          </div>
+        </div>
+      </motion.div>
     </header>
   );
 }
@@ -322,8 +384,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Platform / Capabilities ── */}
-      <section id="platform" className="mx-auto max-w-7xl px-4 py-20 md:py-28">
+      {/* ── Platform / Features ── */}
+      <section id="platform" className="mx-auto max-w-7xl px-4 py-20 scroll-mt-24 md:py-28">
         <motion.div {...fadeUp()} className="text-center">
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">What AI CampusOS Delivers</p>
           <h2 className="text-4xl font-semibold tracking-tight md:text-6xl">One Platform. Every Campus Intelligence.</h2>
@@ -359,8 +421,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Comparison: ERP vs AI CampusOS ── */}
-      <section className="mx-auto max-w-7xl px-4 py-20 md:py-28">
+      {/* ── Outcomes ── */}
+      <section id="outcomes" className="mx-auto max-w-7xl px-4 py-20 scroll-mt-24 md:py-28">
         <motion.div {...fadeUp()} className="text-center">
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">Why AI CampusOS</p>
           <h2 className="text-4xl font-semibold tracking-tight md:text-6xl">More Than a Traditional Campus ERP</h2>
@@ -430,93 +492,23 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="relative overflow-hidden bg-white py-20 md:py-28 dark:bg-[#050505]">
-        <div className="pointer-events-none absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-primary/[0.04] blur-3xl dark:bg-primary/[0.06]" />
-        <div className="pointer-events-none absolute -right-32 top-1/3 h-80 w-80 rounded-full bg-secondary/[0.04] blur-3xl dark:bg-secondary/[0.06]" />
-        <div className="pointer-events-none absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-primary/[0.03] blur-3xl dark:bg-primary/[0.04]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236C4CF1' fill-opacity='0.15'%3E%3Cpath d='M0 0h2v2H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
-
-        <div className="relative z-10 mx-auto max-w-5xl px-4">
-          <motion.div {...fadeUp(0)}>
-            <div className="group relative overflow-hidden rounded-[32px] border border-primary/10 bg-white/80 p-10 shadow-[0_8px_32px_rgba(108,76,241,0.06)] backdrop-blur-xl transition-all duration-500 hover:shadow-[0_24px_80px_rgba(108,76,241,0.12)] md:p-16 dark:border-primary/15 dark:bg-white/[0.03] dark:shadow-[0_8px_32px_rgba(108,76,241,0.02)] dark:hover:shadow-[0_24px_80px_rgba(108,76,241,0.04)]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-primary/[0.02] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-
-              {anim && (
-                <>
-                  <motion.div
-                    animate={{ y: [0, -12, 0] }}
-                    transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                    className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 blur-3xl dark:from-primary/15 dark:to-secondary/15"
-                  />
-                  <motion.div
-                    animate={{ y: [0, 12, 0] }}
-                    transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-                    className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-gradient-to-tr from-primary/8 to-secondary/8 blur-3xl dark:from-primary/12 dark:to-secondary/12"
-                  />
-                </>
-              )}
-
-              <div className="pointer-events-none absolute left-1/3 top-1/3 h-32 w-32 rounded-full bg-primary/[0.03] blur-2xl dark:bg-primary/[0.05]" />
-              <div className="pointer-events-none absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236C4CF1' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
-
-              <div className="relative z-10">
-                <motion.div
-                  initial={anim ? { opacity: 0, scale: 0.96 } : undefined}
-                  whileInView={anim ? { opacity: 1, scale: 1 } : undefined}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.15 }}
-                >
-                  <h2 className="text-3xl font-semibold tracking-tight text-ink md:text-5xl dark:text-white">
-                    Ready to Transform Your Institution?
-                  </h2>
-                  <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted dark:text-white/60">
-                    Empower students, faculty, placement officers, parents, and administrators with one intelligent AI-powered campus platform.
-                  </p>
-                </motion.div>
-
-                <motion.div
-                  initial={anim ? { opacity: 0, y: 16 } : undefined}
-                  whileInView={anim ? { opacity: 1, y: 0 } : undefined}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.35 }}
-                  className="mt-10 flex flex-wrap justify-center gap-4"
-                >
-                  <Link to="/register">
-                    <motion.span
-                      whileHover={anim ? { scale: 1.04, y: -2 } : undefined}
-                      whileTap={anim ? { scale: 0.96 } : undefined}
-                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                      className="inline-block"
-                    >
-                      <Button className="group/primary relative h-12 overflow-hidden rounded-xl bg-gradient-to-r from-primary to-secondary px-8 text-white shadow-lg shadow-primary/25 transition-all duration-300 hover:shadow-[0_0_24px_rgba(108,76,241,0.35)]">
-                        <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 opacity-0 transition-opacity duration-500 group-hover/primary:opacity-100" />
-                        <span className="relative z-10 flex items-center gap-2">
-                          Explore Platform <ArrowRight size={18} className="transition-transform duration-300 group-hover/primary:translate-x-0.5" />
-                        </span>
-                      </Button>
-                    </motion.span>
-                  </Link>
-                  <Link to="/login">
-                    <motion.span
-                      whileHover={anim ? { scale: 1.04, y: -2 } : undefined}
-                      whileTap={anim ? { scale: 0.96 } : undefined}
-                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                      className="inline-block"
-                    >
-                      <Button
-                        variant="secondary"
-                        className="group/secondary h-12 rounded-xl border-2 border-primary/20 bg-white/80 px-8 text-ink shadow-lg shadow-primary/5 backdrop-blur-sm transition-all duration-300 hover:border-primary/40 hover:bg-white hover:shadow-[0_8px_32px_rgba(108,76,241,0.1)] dark:border-primary/25 dark:bg-white/[0.04] dark:text-white/80 dark:hover:border-primary/40 dark:hover:bg-white/[0.08] dark:hover:text-white"
-                      >
-                        Book Demo
-                      </Button>
-                    </motion.span>
-                  </Link>
-                </motion.div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+      {/* ── Contact ── */}
+      <section id="contact" className="mx-auto max-w-3xl px-4 py-16 scroll-mt-24 md:py-20">
+        <motion.div {...fadeUp()} className="text-center">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-primary">Contact</p>
+          <h2 className="text-4xl font-semibold tracking-tight md:text-5xl">Let's Transform Your Campus Together</h2>
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted dark:text-white/60">
+            Ready to see AI CampusOS in action? Get in touch with our team for a personalised demo and consultation.
+          </p>
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <Link to="/register">
+              <Button className="h-12 px-8">Book a Demo <ArrowRight size={18} /></Button>
+            </Link>
+            <a href="mailto:hello@aicampusos.com">
+              <Button variant="secondary" className="h-12 px-8">hello@aicampusos.com</Button>
+            </a>
+          </div>
+        </motion.div>
       </section>
 
       <Footer />

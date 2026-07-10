@@ -1,27 +1,26 @@
 import { useMemo } from "react";
-import type { ElementType, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  Award,
+  ArrowRight,
   Bell,
   BookOpen,
+  Brain,
   CalendarDays,
-  CheckCircle2,
+  ChevronRight,
   Clock,
-  ClipboardList,
   FileText,
   GraduationCap,
   Layers,
+  LineChart,
+  Target,
+  TrendingUp,
   UserRound,
 } from "lucide-react";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Line,
   RadialBar,
   RadialBarChart,
   ResponsiveContainer,
@@ -29,6 +28,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import { AnimatedCounter } from "../../components/ui/AnimatedCounter";
 import { Avatar } from "../../components/ui/Avatar";
@@ -39,50 +39,88 @@ import type { Dashboard } from "../../types";
 
 const PRIMARY = "#6D5DF6";
 
-const containerVariants = {
+const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.055 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 18, scale: 0.985 },
-  show: { opacity: 1, y: 0, scale: 1 },
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] as const } },
 };
 
-function clampScore(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value || 0)));
+function clampScore(v: number) {
+  return Math.max(0, Math.min(100, Math.round(v || 0)));
 }
 
-function asNumber(value: unknown, fallback = 0) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+function asNum(v: unknown, fb = 0) {
+  return typeof v === "number" && Number.isFinite(v) ? v : fb;
 }
 
-function scoreTone(score: number) {
-  if (score >= 80) return "#16A34A";
-  if (score >= 60) return PRIMARY;
-  if (score >= 40) return "#F59E0B";
+function scoreColor(v: number) {
+  if (v >= 80) return "#16A34A";
+  if (v >= 60) return PRIMARY;
+  if (v >= 40) return "#F59E0B";
   return "#EF4444";
 }
 
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good Morning";
-  if (hour < 17) return "Good Afternoon";
-  return "Good Evening";
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
 }
 
-function getGreetingIcon() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "☀️";
-  if (hour < 17) return "🌤️";
-  return "🌙";
+function glassCard(className = "") {
+  return cn(
+    "rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)]",
+    "dark:border-white/[0.06] dark:bg-[#0d0d0e] dark:shadow-none",
+    className,
+  );
+}
+
+function SectionHeader({ label, title }: { label: string; title: string }) {
+  return (
+    <div className="mb-6">
+      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-primary/70">{label}</p>
+      <h2 className="mt-1.5 text-2xl font-semibold tracking-tight text-[#101225] dark:text-white/90">{title}</h2>
+    </div>
+  );
+}
+
+function MiniRing({ value, size = 56 }: { value: number; size?: number }) {
+  const v = clampScore(value);
+  return (
+    <div style={{ width: size, height: size }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RadialBarChart
+          innerRadius="70%"
+          outerRadius="100%"
+          data={[{ value: v, fill: scoreColor(v) }]}
+          startAngle={90}
+          endAngle={-270}
+        >
+          <RadialBar dataKey="value" cornerRadius={50} background={{ fill: "#F0EEFF" }} />
+        </RadialBarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, label }: { icon: any; label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[#D8D2FF] bg-[#FAFAFF] px-6 py-10 text-center dark:border-white/[0.06] dark:bg-white/[0.02]">
+      <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+        <Icon size={18} />
+      </div>
+      <p className="max-w-xs text-sm text-[#8B8FA3] dark:text-white/40">{label}</p>
+    </div>
+  );
 }
 
 export function StudentAcademicsDashboard() {
   const { user } = useAuth();
   const { profile, loading } = useStudentProfile();
 
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+  const { data: dashboardData, isLoading: dashLoading } = useQuery({
     queryKey: ["dashboard", "student"],
     queryFn: async () => (await api.get<Dashboard>("/student/dashboard")).data,
     enabled: !!profile,
@@ -91,432 +129,438 @@ export function StudentAcademicsDashboard() {
   const p = profile;
   const name = dashboardData?.user?.full_name || user?.full_name || "Student";
   const firstName = name.split(" ")[0] || "Student";
-  const cgpa = asNumber(p?.cgpa);
-  const sgpa = asNumber(p?.current_semester_gpa);
-  const attendance = asNumber(p?.attendance_percentage);
-  const credits = asNumber(p?.credits_earned);
-  const totalCredits = asNumber(p?.total_credits, 180) || 180;
-  const creditsScore = totalCredits > 0 ? (credits / totalCredits) * 100 : 0;
-  const skillScore = asNumber(p?.skill_score);
+  const cgpa = asNum(p?.cgpa);
+  const sgpa = asNum(p?.current_semester_gpa);
+  const attendance = asNum(p?.attendance_percentage);
+  const credits = asNum(p?.credits_earned);
+  const totalCredits = asNum(p?.total_credits, 180) || 180;
   const subjects = p?.subjects_data || [];
   const semesterGpas = p?.semester_gpas || [];
-  const roadmap = dashboardData?.roadmap || [];
+  const facultyAdvisor = p?.faculty_advisor;
+  const recommendations = dashboardData?.recommendations || [];
   const notifications = dashboardData?.notifications || [];
-  const activities = dashboardData?.activities || [];
+
+  const healthScore = useMemo(() => {
+    const c = cgpa ? clampScore(cgpa * 10) : 0;
+    const a = attendance ? clampScore(attendance) : 0;
+    const cr = totalCredits > 0 ? clampScore((credits / totalCredits) * 100) : 0;
+    return Math.round(c * 0.4 + a * 0.3 + cr * 0.3);
+  }, [cgpa, attendance, credits, totalCredits]);
 
   const timeline = useMemo(() => {
     if (semesterGpas.length) {
-      return semesterGpas.map((sem: any, index) => ({
-        label: sem.semester || `Semester ${index + 1}`,
-        cgpa: asNumber(sem.cgpa ?? sem.sgpa),
-        sgpa: asNumber(sem.sgpa ?? sem.cgpa),
-        credits: asNumber(sem.credits),
-        active: String(sem.semester || "").includes(String(p?.semester || "")),
+      return semesterGpas.map((sem: any) => ({
+        label: sem.semester || "Sem",
+        cgpa: asNum(sem.cgpa ?? sem.sgpa),
+        sgpa: asNum(sem.sgpa ?? sem.cgpa),
+        credits: asNum(sem.credits),
+        active: String(sem.semester).includes(String(p?.semester || "")),
       }));
     }
-    return Array.from({ length: Math.max(asNumber(p?.semester, 1), 1) }, (_, index) => ({
-      label: `Semester ${index + 1}`,
-      cgpa: index + 1 === p?.semester ? cgpa : 0,
-      sgpa: index + 1 === p?.semester ? sgpa : 0,
-      credits: index + 1 === p?.semester ? credits : 0,
-      active: index + 1 === p?.semester,
+    return Array.from({ length: Math.max(asNum(p?.semester, 1), 1) }, (_, i) => ({
+      label: `Sem ${i + 1}`,
+      cgpa: i + 1 === p?.semester ? cgpa : 0,
+      sgpa: i + 1 === p?.semester ? sgpa : 0,
+      credits: i + 1 === p?.semester ? credits : 0,
+      active: i + 1 === p?.semester,
     }));
   }, [semesterGpas, p?.semester, cgpa, sgpa, credits]);
 
-  const analyticsData = timeline.map((item, index) => {
-    const attendanceTrend = clampScore(attendance - Math.max(timeline.length - index - 1, 0) * 2);
-    return {
-      name: item.label.replace("Semester ", "Sem "),
-      attendance: attendanceTrend,
-      cgpa: item.cgpa ? item.cgpa * 10 : cgpa * 10,
-      credits: item.credits || Math.min(credits, Math.round(((index + 1) / Math.max(timeline.length, 1)) * credits)),
-    };
-  });
+  const chartData = timeline.map((t, i) => ({
+    name: t.label.replace("Semester ", "Sem "),
+    sgpa: t.sgpa,
+    cgpa: t.cgpa,
+  }));
 
-  const chartLegend = [
-    { label: "Attendance Trend", color: PRIMARY },
-    { label: "CGPA Trend", color: "#111827" },
-    { label: "Credits Earned", color: "#0EA5E9" },
+  const subjectCards = useMemo(() => {
+    if (!subjects.length) return [];
+    return subjects.map((s: any) => ({
+      code: s.code || "—",
+      name: s.name || "Subject",
+      faculty: s.faculty || "—",
+      credits: asNum(s.credits),
+      type: s.type || "Core",
+    }));
+  }, [subjects]);
+
+  const upcomingItems = useMemo(() => {
+    const items: { label: string; meta: string; icon: any }[] = [];
+    for (const n of notifications.slice(0, 4)) {
+      items.push({ label: n.title || n.message || "Update", meta: n.type || "Notice", icon: Bell });
+    }
+    return items;
+  }, [notifications]);
+
+  const chips = [
+    { label: "Department", value: p?.department || "—" },
+    { label: "Year", value: p?.year ? `Year ${p.year}` : "—" },
+    { label: "Semester", value: p?.semester ? `Sem ${p.semester}` : "—" },
+    { label: "Roll No.", value: p?.roll_number || "—" },
+    { label: "Section", value: p?.section || "—" },
   ];
 
-  const recentActivity = [
-    ...activities.map((activity: any) => ({
-      label: activity.action || activity.title || "Activity",
-      meta: activity.timestamp || activity.type || "Recently",
-      icon: Clock,
-    })),
-    ...roadmap.slice(0, 3).map((item: any) => ({
-      label: item.step || item.title || "Roadmap item",
-      meta: item.status || "In progress",
-      icon: CheckCircle2,
-    })),
-  ].slice(0, 8);
+  const isLoading = loading || dashLoading;
 
-  const upcomingEvents = [
-    ...subjects.slice(0, 3).map((subject: any) => ({ label: subject.name || subject.code || "Subject", meta: subject.type || "Class", icon: BookOpen })),
-    ...notifications.slice(0, 3).map((item: any) => ({ label: item.title || item.message || "Notification", meta: item.type || "Campus", icon: Bell })),
-    ...roadmap.slice(0, 2).map((item: any) => ({ label: item.step || item.title || "Deadline", meta: item.status || "Upcoming", icon: CalendarDays })),
-  ].slice(0, 7);
-
-  const subjectPerformance = subjects.length
-    ? subjects.slice(0, 6).map((subject: any, index) => ({
-        subject: subject.code || subject.name || `Subject ${index + 1}`,
-        performance: clampScore((cgpa || sgpa || 7) * 10 - index * 3 + (attendance >= 75 ? 4 : -4)),
-      }))
-    : [
-        { subject: "Core", performance: clampScore(cgpa * 10 || 72) },
-        { subject: "Labs", performance: clampScore(sgpa * 10 || 76) },
-        { subject: "Projects", performance: clampScore(skillScore || 68) },
-      ];
-
-  const academicTasks = [
-    ...subjects.slice(0, 2).map((subject: any) => ({
-      label: subject.name || subject.code || "Subject review",
-      meta: subject.type || "Upcoming class",
-      icon: BookOpen,
-    })),
-    ...roadmap.slice(0, 2).map((item: any) => ({
-      label: item.step || item.title || "Academic milestone",
-      meta: item.status || "In progress",
-      icon: CheckCircle2,
-    })),
-    ...notifications.slice(0, 2).map((item: any) => ({
-      label: item.title || item.message || "Campus update",
-      meta: item.type || "Notification",
-      icon: CalendarDays,
-    })),
-  ].slice(0, 5);
-
-  const heroChips = [
-    { label: "Department", value: p?.department || "Not set" },
-    { label: "Year", value: p?.year ? `Year ${p.year}` : "Not set" },
-    { label: "Semester", value: p?.semester ? `Semester ${p.semester}` : "Not set" },
-    { label: "Roll No.", value: p?.roll_number || "Not set" },
-    { label: "Section", value: p?.section || "Not set" },
-  ];
-  const academicModules = [
-    { icon: CalendarDays, title: "Attendance", detail: `${clampScore(attendance)}% current attendance`, value: `${clampScore(attendance)}%` },
-    { icon: GraduationCap, title: "SGPA / CGPA", detail: `SGPA ${sgpa ? sgpa.toFixed(2) : "0.00"} • CGPA ${cgpa ? cgpa.toFixed(2) : "0.00"}`, value: cgpa ? cgpa.toFixed(2) : "0.00" },
-    { icon: Layers, title: "Credits", detail: `${Math.max(totalCredits - credits, 0)} credits remaining`, value: `${credits}/${totalCredits}` },
-    { icon: BookOpen, title: "Subjects", detail: `${subjects.length} active subjects`, value: String(subjects.length) },
-    { icon: FileText, title: "Internal Marks", detail: "Current semester assessment tracking", value: sgpa ? `${Math.round(sgpa * 10)}%` : "0%" },
-    { icon: Award, title: "Semester Results", detail: `${timeline.length} semester records`, value: String(timeline.length) },
-    { icon: ClipboardList, title: "Assignments", detail: `${academicTasks.length} academic workload items`, value: String(academicTasks.length) },
-    { icon: Clock, title: "Timetable", detail: "Classes and lab schedule", value: p?.section || "—" },
-    { icon: UserRound, title: "Faculty", detail: p?.faculty_advisor || "Faculty advisor not assigned", value: p?.faculty_advisor ? "Set" : "—" },
-    { icon: CheckCircle2, title: "Exams", detail: `${upcomingEvents.length} upcoming academic items`, value: String(upcomingEvents.length) },
-    { icon: CalendarDays, title: "Academic Calendar", detail: p?.academic_year || "Academic year not set", value: p?.academic_year || "—" },
-  ];
-
-  if (loading || dashboardLoading) {
-    return <DashboardSkeleton />;
-  }
+  if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <motion.div
-      initial="hidden"
-      animate="show"
-      variants={containerVariants}
-      className="relative min-h-screen space-y-6 bg-white pb-8 font-sans text-[#101225]"
-    >
-      <motion.section variants={itemVariants} className="relative rounded-[32px] border border-[#EEF0F5] bg-[#F8F9FC] p-5 pr-28 shadow-[0_18px_50px_rgba(16,18,37,0.045)] md:pr-36">
-        <div className="absolute right-5 top-5 rounded-[28px] border border-white bg-white p-2 shadow-[0_14px_38px_rgba(16,18,37,0.08)]">
-          <Avatar src={p?.profile_photo_url} name={name} size="lg" rounded="2xl" />
-        </div>
-        <p className="text-sm font-semibold text-[#6B7280]">{getGreeting()} <span aria-hidden>{getGreetingIcon()}</span></p>
-        <h1 className="mt-2 text-3xl font-bold leading-tight tracking-normal text-[#101225] md:text-[42px]">
-          Welcome back, {firstName} <span aria-hidden>👋</span>
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-[#6B7280]">Here's your academic snapshot for today.</p>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          {heroChips.map((item) => (
-            <span key={item.label} className="inline-flex items-center gap-2 rounded-full border border-[#ECEBFF] bg-white px-3.5 py-2 text-xs shadow-[0_8px_22px_rgba(16,18,37,0.035)]">
-              <span className="font-semibold text-[#8B8FA3]">{item.label}</span>
-              <span className="font-bold text-[#101225]">{item.value}</span>
-            </span>
-          ))}
-        </div>
-      </motion.section>
-
-      <motion.section variants={itemVariants} className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={CalendarDays} label="Attendance" value={attendance} suffix="%" detail="Weekly trend" progress={attendance} trend={attendance >= 75 ? "Stable eligibility signal" : "Needs recovery this week"} />
-        <MetricCard icon={GraduationCap} label="CGPA" value={cgpa} decimals={2} detail="Semester trend" progress={cgpa * 10} trend={sgpa && cgpa && sgpa >= cgpa ? "Current SGPA is improving" : "Focus subjects this week"} />
-        <MetricCard icon={Layers} label="Credits" value={credits} detail={`${Math.max(totalCredits - credits, 0)} credits remaining`} progress={creditsScore} trend={`${credits}/${totalCredits} completed`} />
-        <MetricCard icon={BookOpen} label="Subjects" value={subjects.length} detail="Active academic modules" progress={Math.min(subjects.length * 12, 100)} trend={subjects.length ? "Current semester subjects loaded" : "No subjects saved yet"} />
-      </motion.section>
-
-      <motion.section variants={itemVariants}>
-        <SectionHeader eyebrow="Academic Modules" title="Academic command center" />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {academicModules.map((item) => (
-            <ModuleCard key={item.title} {...item} />
-          ))}
-        </div>
-      </motion.section>
-
-      <motion.section variants={itemVariants}>
-        <SectionHeader eyebrow="Academic Timeline" title="Semester roadmap" />
-        <GlassPanel className="overflow-x-auto p-5 premium-scrollbar">
-          <div className="flex min-w-[760px] items-center gap-3">
-            {timeline.map((item, index) => (
-              <div key={`${item.label}-${index}`} className="flex flex-1 items-center">
-                <motion.div
-                  whileHover={{ y: -4 }}
-                  className={cn(
-                    "relative min-h-[116px] flex-1 rounded-[24px] border p-4",
-                    item.active ? "border-[#6D5DF6] bg-[#6D5DF6] text-white shadow-[0_16px_36px_rgba(109,93,246,0.22)]" : "border-[#ECEBFF] bg-white text-[#101225]",
-                  )}
-                >
-                  {item.active && <div className="absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.32),transparent_36%)]" />}
-                  <p className={cn("relative text-xs font-bold uppercase tracking-[0.16em]", item.active ? "text-white/75" : "text-[#8B8FA3]")}>{item.active ? "Current" : "Milestone"}</p>
-                  <h3 className="relative mt-3 text-lg font-bold">{item.label}</h3>
-                  <p className={cn("relative mt-3 text-sm", item.active ? "text-white/80" : "text-[#6B7280]")}>CGPA {item.cgpa || "—"} • SGPA {item.sgpa || "—"}</p>
-                </motion.div>
-                {index < timeline.length - 1 && <div className="h-px w-8 bg-gradient-to-r from-[#DDD6FE] to-[#6D5DF6]/50" />}
+    <motion.div variants={container} initial="hidden" animate="show" className="mx-auto min-h-screen max-w-7xl space-y-10 px-4 py-8 pb-16">
+      {/* ── Hero ── */}
+      <motion.section variants={item}>
+        <div className="relative overflow-hidden rounded-3xl border border-[rgba(0,0,0,0.05)] bg-gradient-to-br from-[#FAFAFF] to-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-white/[0.05] dark:from-[#0d0d0e] dark:to-[#0d0d0e]">
+          <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary/[0.04] blur-3xl" />
+          <div className="relative z-10 flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:p-8">
+            <div className="flex-1">
+              <div className="flex items-start gap-5">
+                <div className="block md:hidden">
+                  <Avatar src={p?.profile_photo_url} name={name} size="lg" rounded="2xl" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#6B7280] dark:text-white/50">{greeting()}</p>
+                  <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#101225] dark:text-white md:text-3xl">
+                    {firstName}
+                  </h1>
+                  <p className="mt-1 text-sm text-[#6B7280] dark:text-white/40">Here&apos;s your academic overview.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {chips.map((c) => (
+                      <span
+                        key={c.label}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(0,0,0,0.05)] bg-white px-3 py-1.5 text-xs font-medium shadow-[0_1px_2px_rgba(0,0,0,0.02)] dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-white/60"
+                      >
+                        <span className="text-[#8B8FA3] dark:text-white/40">{c.label}</span>
+                        <span className="font-semibold text-[#101225] dark:text-white/80">{c.value}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ))}
+            </div>
+            <div className="hidden shrink-0 md:block">
+              <Avatar src={p?.profile_photo_url} name={name} size="xl" rounded="2xl" />
+            </div>
+            <div className="flex shrink-0 items-center gap-4 md:flex-col md:items-end">
+              <div className="flex items-center gap-3">
+                <MiniRing value={healthScore} size={72} />
+                <div>
+                  <p className="text-sm font-semibold text-[#6B7280] dark:text-white/50">Academic Health</p>
+                  <p className="text-2xl font-bold text-[#101225] dark:text-white">
+                    <AnimatedCounter value={healthScore} suffix="%" />
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        </GlassPanel>
+        </div>
       </motion.section>
 
-      <motion.section variants={itemVariants}>
-        <SectionHeader eyebrow="Performance Analytics" title="Live academic signal graph" />
-        <GlassPanel className="p-6">
-          <div className="mb-5 flex flex-wrap gap-3">
-            {chartLegend.map((item) => (
-              <span key={item.label} className="inline-flex items-center gap-2 rounded-full border border-[#ECEBFF] bg-white/70 px-3 py-1.5 text-xs font-bold text-[#6B7280]">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />
-                {item.label}
-              </span>
-            ))}
-          </div>
-          {analyticsData.length ? (
-            <ResponsiveContainer width="100%" height={360}>
-              <AreaChart data={analyticsData}>
-                <defs>
-                  <linearGradient id="purpleArea" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor={PRIMARY} stopOpacity={0.32} />
-                    <stop offset="95%" stopColor={PRIMARY} stopOpacity={0.02} />
-                  </linearGradient>
-                  <linearGradient id="creditArea" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.24} />
-                    <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#F1F0FF" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#8B8FA3", fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#8B8FA3", fontSize: 12 }} />
-                <Tooltip contentStyle={{ border: "1px solid #ECEBFF", borderRadius: 18, boxShadow: "0 18px 45px rgba(16,18,37,0.08)" }} />
-                <Area type="monotone" dataKey="attendance" name="Attendance Trend" stroke={PRIMARY} strokeWidth={3} fill="url(#purpleArea)" />
-                <Area type="monotone" dataKey="credits" name="Credits Earned" stroke="#0EA5E9" strokeWidth={2.5} fill="url(#creditArea)" />
-                <Line type="monotone" dataKey="cgpa" name="CGPA Trend" stroke="#111827" strokeWidth={3} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyState label="Performance analytics appears after semester data is saved." />
-          )}
-        </GlassPanel>
+      {/* ── KPI Grid ── */}
+      <motion.section variants={item} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          icon={GraduationCap}
+          label="CGPA"
+          value={`${cgpa.toFixed(2)}`}
+          ringValue={cgpa * 10}
+          subtitle={sgpa >= cgpa && sgpa > 0 ? "SGPA improving ↑" : `${cgpa > 0 ? "Current GPA" : "No data yet"}`}
+        />
+        <KpiCard
+          icon={TrendingUp}
+          label="SGPA"
+          value={sgpa > 0 ? sgpa.toFixed(2) : "—"}
+          ringValue={sgpa * 10}
+          subtitle={sgpa > 0 ? "Current semester" : "Not available"}
+        />
+        <KpiCard
+          icon={CalendarDays}
+          label="Attendance"
+          value={`${clampScore(attendance)}%`}
+          ringValue={attendance}
+          subtitle={attendance >= 75 ? "Eligibility stable" : attendance > 0 ? "Needs improvement" : "No data"}
+        />
+        <KpiCard
+          icon={Layers}
+          label="Credits"
+          value={`${credits}`}
+          ringValue={totalCredits > 0 ? (credits / totalCredits) * 100 : 0}
+          subtitle={`${totalCredits - credits} remaining of ${totalCredits}`}
+        />
       </motion.section>
 
-      <motion.section variants={itemVariants}>
-        <SectionHeader eyebrow="Academic Overview" title="Semester performance and workload" />
-        <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
-          <GlassPanel className="p-6">
-            <SectionHeader eyebrow="Semester-wise SGPA" title="SGPA and CGPA trend" compact />
-            <div className="mt-5 h-[300px]">
+      {/* ── SGPA Trend ── */}
+      {chartData.length > 1 && (
+        <motion.section variants={item}>
+          <div className={glassCard("p-6")}>
+            <SectionHeader label="Performance Trend" title="SGPA & CGPA Progression" />
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={analyticsData}>
-                  <CartesianGrid stroke="#EEF0F5" vertical={false} />
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="sgpaGrad" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor={PRIMARY} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={PRIMARY} stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="cgpaGrad" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#111827" stopOpacity={0.18} />
+                      <stop offset="100%" stopColor="#111827" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#F0EEFF" vertical={false} strokeDasharray="3 3" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#8B8FA3", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#8B8FA3", fontSize: 12 }} />
-                  <Tooltip contentStyle={{ border: "1px solid #ECEBFF", borderRadius: 18 }} />
-                  <Area type="monotone" dataKey="cgpa" name="CGPA Trend" stroke={PRIMARY} strokeWidth={3} fill="rgba(109,93,246,0.10)" />
-                  <Line type="monotone" dataKey="attendance" name="Attendance Trend" stroke="#111827" strokeWidth={2.5} dot={false} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#8B8FA3", fontSize: 12 }} domain={[0, "auto"]} />
+                  <Tooltip
+                    contentStyle={{
+                      border: "1px solid rgba(0,0,0,0.06)",
+                      borderRadius: 16,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+                      background: "rgba(255,255,255,0.9)",
+                      backdropFilter: "blur(12px)",
+                    }}
+                  />
+                  <Area type="monotone" dataKey="sgpa" stroke={PRIMARY} strokeWidth={2.5} fill="url(#sgpaGrad)" name="SGPA" />
+                  <Area type="monotone" dataKey="cgpa" stroke="#111827" strokeWidth={2} fill="url(#cgpaGrad)" name="CGPA" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </GlassPanel>
-          <GlassPanel className="p-6">
-            <SectionHeader eyebrow="Credits Progress" title={`${credits}/${totalCredits} credits earned`} compact />
-            <div className="mt-6 grid gap-5 sm:grid-cols-[150px_1fr] sm:items-center">
-              <MiniRing value={creditsScore} size={140} />
-              <div className="space-y-4">
-                <ProgressRow label="Attendance Trend" value={attendance} suffix="%" />
-                <ProgressRow label="Current SGPA" value={sgpa * 10} suffix="%" />
-                <ProgressRow label="Credits Completed" value={creditsScore} suffix="%" />
+          </div>
+        </motion.section>
+      )}
+
+      {/* ── Subject Performance + AI Recommendations ── */}
+      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+        {subjectCards.length > 0 && (
+          <motion.section variants={item}>
+            <div className={glassCard("p-6")}>
+              <SectionHeader label="Course Load" title={`${subjectCards.length} Active Subjects`} />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {subjectCards.map((s) => (
+                  <div
+                    key={s.code}
+                    className="group rounded-xl border border-[rgba(0,0,0,0.05)] bg-white p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_4px_16px_rgba(109,93,246,0.08)] dark:border-white/[0.05] dark:bg-white/[0.02] dark:hover:border-primary/30"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/15">
+                        <BookOpen size={16} />
+                      </div>
+                      <span className="rounded-md bg-[#F0EEFF] px-2 py-0.5 text-[11px] font-medium text-primary/80 dark:bg-white/[0.04] dark:text-primary/60">
+                        {s.credits} cr
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs font-medium text-[#8B8FA3] dark:text-white/40">{s.code}</p>
+                    <p className="mt-0.5 text-sm font-semibold text-[#101225] dark:text-white/90">{s.name}</p>
+                    <p className="mt-2 text-xs text-[#8B8FA3] dark:text-white/40">{s.type} &middot; {s.faculty}</p>
+                  </div>
+                ))}
+              </div>
+              <Link
+                to="/app/student/internal-marks"
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                View detailed marks <ArrowRight size={14} />
+              </Link>
+            </div>
+          </motion.section>
+        )}
+
+        {/* ── AI Recommendations ── */}
+        {(recommendations.length > 0 || healthScore > 0) && (
+          <motion.section variants={item}>
+            <div className={glassCard("p-6")}>
+              <SectionHeader label="AI Insights" title="Recommendations" />
+              <div className="space-y-3">
+                {recommendations.length > 0 ? (
+                  recommendations.slice(0, 4).map((r: any, i: number) => (
+                    <div
+                      key={i}
+                      className="group rounded-xl border border-[rgba(0,0,0,0.04)] bg-white p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-[0_2px_8px_rgba(109,93,246,0.06)] dark:border-white/[0.04] dark:bg-white/[0.015] dark:hover:border-primary/20"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                          <Brain size={15} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[#101225] dark:text-white/90">{r.title}</p>
+                          <p className="mt-0.5 text-xs text-[#8B8FA3] dark:text-white/40">{r.reason || r.action}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : healthScore < 80 && (
+                  <div className="rounded-xl border border-[rgba(0,0,0,0.04)] bg-white p-4 dark:border-white/[0.04] dark:bg-white/[0.015]">
+                    <div className="flex items-start gap-3">
+                      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                        <Target size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#101225] dark:text-white/90">Improve Academic Score</p>
+                        <p className="mt-0.5 text-xs text-[#8B8FA3] dark:text-white/40">
+                          Focus on attendance and CGPA to boost your overall academic health.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </GlassPanel>
-          <GlassPanel className="p-6">
-            <SectionHeader eyebrow="Subject Performance" title="Current semester subjects" compact />
-            <div className="mt-5 h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={subjectPerformance}>
-                  <CartesianGrid stroke="#EEF0F5" vertical={false} />
-                  <XAxis dataKey="subject" axisLine={false} tickLine={false} tick={{ fill: "#8B8FA3", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#8B8FA3", fontSize: 12 }} />
-                  <Tooltip contentStyle={{ border: "1px solid #ECEBFF", borderRadius: 18 }} />
-                  <Bar dataKey="performance" name="Performance" fill={PRIMARY} radius={[10, 10, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </GlassPanel>
-          <GlassPanel className="p-6">
-            <SectionHeader eyebrow="Upcoming Exams & Assignments" title="Academic workload" compact />
-            <Timeline items={academicTasks} empty="No academic workload items available yet." />
-          </GlassPanel>
-        </div>
-      </motion.section>
+          </motion.section>
+        )}
+      </div>
 
-      <motion.section variants={itemVariants} className="grid gap-6 xl:grid-cols-[1fr_.9fr]">
-        <GlassPanel className="max-h-[520px] overflow-y-auto p-6">
-          <SectionHeader eyebrow="Recent Activities" title="Live timeline" compact />
-          <Timeline items={recentActivity} empty="No recent activities available yet." />
-        </GlassPanel>
-        <GlassPanel className="max-h-[520px] overflow-y-auto p-6">
-          <SectionHeader eyebrow="Upcoming Events" title="Calendar timeline" compact />
-          <Timeline items={upcomingEvents} empty="No upcoming events available yet." />
-        </GlassPanel>
-      </motion.section>
+      {/* ── Academic Timeline + Upcoming ── */}
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        {/* Timeline */}
+        {timeline.length > 0 && (
+          <motion.section variants={item}>
+            <div className={glassCard("p-6")}>
+              <SectionHeader label="Milestones" title="Academic Timeline" />
+              <div className="flex items-start gap-1 overflow-x-auto pb-2">
+                {timeline.map((t, i) => (
+                  <div key={i} className="flex items-center">
+                    <div
+                      className={cn(
+                        "relative min-w-[130px] rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-0.5",
+                        t.active
+                          ? "border-primary/30 bg-primary/5 shadow-[0_4px_16px_rgba(109,93,246,0.10)] dark:border-primary/30 dark:bg-primary/[0.06]"
+                          : "border-[rgba(0,0,0,0.05)] bg-white dark:border-white/[0.05] dark:bg-white/[0.02]",
+                      )}
+                    >
+                      {t.active && (
+                        <span className="absolute -top-2 left-4 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                          Current
+                        </span>
+                      )}
+                      <p className="text-xs font-semibold text-[#8B8FA3] dark:text-white/40">{t.label}</p>
+                      <div className="mt-3 space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-[#6B7280] dark:text-white/50">SGPA</span>
+                          <span className="font-semibold text-[#101225] dark:text-white/80">{t.sgpa > 0 ? t.sgpa.toFixed(2) : "—"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-[#6B7280] dark:text-white/50">CGPA</span>
+                          <span className="font-semibold text-[#101225] dark:text-white/80">{t.cgpa > 0 ? t.cgpa.toFixed(2) : "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {i < timeline.length - 1 && (
+                      <div className="mx-1 h-px w-6 bg-gradient-to-r from-primary/40 to-primary/10" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.section>
+        )}
+
+        {/* Upcoming / Faculty Support */}
+        <motion.section variants={item}>
+          <div className={glassCard("p-6")}>
+            <SectionHeader label="Support" title="Faculty & Updates" />
+            <div className="space-y-4">
+              {facultyAdvisor ? (
+                <div className="flex items-center gap-4 rounded-xl border border-[rgba(0,0,0,0.04)] bg-white p-4 dark:border-white/[0.04] dark:bg-white/[0.015]">
+                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <UserRound size={20} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#101225] dark:text-white/90">Faculty Advisor</p>
+                    <p className="text-sm text-[#6B7280] dark:text-white/50">{facultyAdvisor}</p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Attendance", path: "/app/student/attendance", icon: CalendarDays },
+                  { label: "CGPA", path: "/app/student/cgpa-analytics", icon: LineChart },
+                  { label: "Assignments", path: "/app/student/assignments", icon: FileText },
+                  { label: "Timetable", path: "/app/student/timetable", icon: Clock },
+                ].map((link) => (
+                  <Link
+                    key={link.label}
+                    to={link.path}
+                    className="flex items-center gap-3 rounded-xl border border-[rgba(0,0,0,0.04)] bg-white p-3 text-sm font-medium text-[#6B7280] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/15 hover:text-primary hover:shadow-[0_4px_12px_rgba(109,93,246,0.06)] dark:border-white/[0.04] dark:bg-white/[0.015] dark:text-white/50 dark:hover:border-primary/20 dark:hover:text-primary"
+                  >
+                    <link.icon size={16} />
+                    <span>{link.label}</span>
+                    <ChevronRight size={14} className="ml-auto opacity-40" />
+                  </Link>
+                ))}
+              </div>
+
+              {upcomingItems.length > 0 && (
+                <div className="pt-2">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8B8FA3] dark:text-white/40">
+                    Recent Updates
+                  </p>
+                  <div className="space-y-2">
+                    {upcomingItems.map((item, i) => (
+                      <div key={i} className="flex items-center gap-3 text-sm">
+                        <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary/5 text-primary/60">
+                          <item.icon size={13} />
+                        </div>
+                        <span className="text-[#6B7280] dark:text-white/50">{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.section>
+      </div>
     </motion.div>
   );
 }
 
-function GlassPanel({ children, className }: { children: ReactNode; className?: string }) {
+/* ── Sub-components ── */
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  ringValue,
+  subtitle,
+}: {
+  icon: any;
+  label: string;
+  value: string;
+  ringValue: number;
+  subtitle: string;
+}) {
   return (
     <motion.div
-      variants={itemVariants}
+      variants={item}
       className={cn(
-        "rounded-[30px] border border-[#ECEBFF] bg-white shadow-[0_18px_50px_rgba(16,18,37,0.055)]",
-        className,
+        "group relative overflow-hidden rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white p-5 transition-all duration-300",
+        "hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_8px_24px_rgba(109,93,246,0.08)]",
+        "dark:border-white/[0.06] dark:bg-[#0d0d0e] dark:hover:border-primary/30 dark:hover:shadow-[0_8px_24px_rgba(109,93,246,0.04)]",
       )}
     >
-      {children}
-    </motion.div>
-  );
-}
-
-function SectionHeader({ eyebrow, title, compact = false }: { eyebrow: string; title: string; compact?: boolean }) {
-  return (
-    <div className={cn(!compact && "mb-5")}>
-      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6D5DF6]">{eyebrow}</p>
-      <h2 className={cn("mt-2 font-bold tracking-normal text-[#101225]", compact ? "text-2xl" : "text-3xl")}>{title}</h2>
-    </div>
-  );
-}
-
-function ProgressRow({ label, value, suffix = "" }: { label: string; value: number; suffix?: string }) {
-  const progress = clampScore(value);
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-[#6B7280]">{label}</span>
-        <span className="text-sm font-bold text-[#101225]"><AnimatedCounter value={progress} suffix={suffix} /></span>
-      </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-[#EEF0F5]">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.9, ease: "easeOut" }}
-          className="h-full rounded-full bg-[#6D5DF6]"
-        />
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ icon: Icon, label, value, suffix = "", decimals = 0, detail, progress, trend }: { icon: ElementType; label: string; value: number; suffix?: string; decimals?: number; detail: string; progress: number; trend: string }) {
-  return (
-    <GlassPanel className="group p-5 transition hover:-translate-y-1 hover:shadow-[0_24px_54px_rgba(16,18,37,0.08)]">
       <div className="flex items-start justify-between">
-        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#6D5DF6]/10 text-[#6D5DF6]">
-          <Icon size={20} />
-        </div>
-        <MiniRing value={progress} size={62} />
-      </div>
-      <p className="mt-5 text-sm font-semibold text-[#6B7280]">{label}</p>
-      <p className="mt-2 text-4xl font-bold text-[#101225]">
-        <AnimatedCounter value={value || 0} suffix={suffix} decimals={decimals} />
-      </p>
-      <p className="mt-3 text-sm font-semibold text-[#6D5DF6]">{detail}</p>
-      <p className="mt-1 text-xs text-[#8B8FA3]">{trend}</p>
-    </GlassPanel>
-  );
-}
-
-function MiniRing({ value, size = 72 }: { value: number; size?: number }) {
-  return (
-    <div style={{ width: size, height: size }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <RadialBarChart innerRadius="72%" outerRadius="100%" data={[{ value: clampScore(value), fill: scoreTone(value) }]} startAngle={90} endAngle={-270}>
-          <RadialBar dataKey="value" cornerRadius={14} background={{ fill: "#F0EEFF" }} />
-        </RadialBarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-function ModuleCard({ icon: Icon, title, detail, value }: { icon: ElementType; title: string; detail: string; value: string }) {
-  return (
-    <motion.div whileHover={{ y: -3 }} className="rounded-[24px] border border-[#ECEBFF] bg-white p-4 shadow-[0_14px_40px_rgba(16,18,37,0.04)]">
-      <div className="flex items-center justify-between">
-        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#F5F3FF] text-[#6D5DF6]">
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/8 text-primary">
           <Icon size={18} />
         </div>
-        <span className="max-w-[84px] truncate text-right text-sm font-bold text-[#101225]">{value}</span>
+        <MiniRing value={ringValue} size={48} />
       </div>
-      <h3 className="mt-4 text-base font-bold text-[#101225]">{title}</h3>
-      <p className="mt-1 min-h-[40px] text-sm leading-5 text-[#6B7280]">{detail}</p>
+      <p className="mt-4 text-xs font-medium text-[#8B8FA3] dark:text-white/40">{label}</p>
+      <p className="mt-1 text-2xl font-bold tracking-tight text-[#101225] dark:text-white">{value}</p>
+      <p className="mt-1.5 text-xs text-[#6B7280] dark:text-white/50">{subtitle}</p>
     </motion.div>
-  );
-}
-
-function Timeline({ items, empty }: { items: { label: string; meta: string; icon: ElementType }[]; empty: string }) {
-  if (!items.length) return <EmptyState label={empty} />;
-  return (
-    <div className="mt-6 space-y-4">
-      {items.map((item, index) => {
-        const Icon = item.icon;
-        return (
-          <div key={`${item.label}-${index}`} className="flex gap-4">
-            <div className="flex flex-col items-center">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#F4F2FF] text-[#6D5DF6]">
-                <Icon size={17} />
-              </div>
-              {index < items.length - 1 && <div className="mt-2 h-8 w-px bg-[#E7E4FF]" />}
-            </div>
-            <motion.div whileHover={{ x: 3 }} className="flex-1 rounded-[22px] border border-[#ECEBFF] bg-white/70 p-4 shadow-[0_10px_30px_rgba(16,18,37,0.035)]">
-              <p className="text-sm font-bold text-[#101225]">{item.label}</p>
-              <p className="mt-1 text-xs font-semibold text-[#8B8FA3]">{item.meta}</p>
-            </motion.div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="rounded-[24px] border border-dashed border-[#D8D2FF] bg-[#FAFAFF] p-6 text-center text-sm font-semibold text-[#8B8FA3]">
-      {label}
-    </div>
   );
 }
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6 bg-white">
-      <div className="h-16 animate-pulse rounded-[30px] bg-[#F4F2FF]" />
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <div className="h-72 animate-pulse rounded-[32px] bg-[#F8F7FF]" />
-        <div className="h-72 animate-pulse rounded-[32px] bg-[#F8F7FF]" />
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-8">
+      <div className="h-40 animate-pulse rounded-3xl bg-[#F4F2FF]/60 dark:bg-white/[0.03]" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-36 animate-pulse rounded-2xl bg-[#F8F7FF]/50 dark:bg-white/[0.02]" />
+        ))}
       </div>
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => <div key={index} className="h-48 animate-pulse rounded-[30px] bg-[#F8F7FF]" />)}
+      <div className="h-72 animate-pulse rounded-2xl bg-[#F8F7FF]/50 dark:bg-white/[0.02]" />
+      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+        <div className="h-64 animate-pulse rounded-2xl bg-[#F8F7FF]/50 dark:bg-white/[0.02]" />
+        <div className="h-64 animate-pulse rounded-2xl bg-[#F8F7FF]/50 dark:bg-white/[0.02]" />
       </div>
-      <div className="h-96 animate-pulse rounded-[30px] bg-[#F8F7FF]" />
     </div>
   );
 }
